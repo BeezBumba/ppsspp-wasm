@@ -146,6 +146,12 @@
       color: var(--danger);
     }
 
+    .gamepad-connected {
+      background: #0d2318 !important;
+      border-color: var(--accent) !important;
+      color: var(--accent) !important;
+    }
+
     @media (max-width: 900px) {
       main {
         grid-template-columns: 1fr;
@@ -177,6 +183,8 @@
       <button id="startBtn" class="primary">Avvia</button>
       <button id="audioBtn">Audio</button>
       <button id="fullscreenBtn">Fullscreen</button>
+      <button id="gamepadBtn">🎮 Gamepad</button>
+      <span id="gamepadStatus" style="font-size:12px;padding:4px 8px;border-radius:4px;background:#252b31;border:1px solid var(--line);color:var(--muted)">🎮 Nessun controller</span>
     </div>
   </header>
 
@@ -645,6 +653,81 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     }
 
     installAudioContextTracking();
+
+    // ── Gamepad / PS4 controller support ─────────────────────────────────────
+    const gamepadStatusEl = document.getElementById("gamepadStatus");
+    const connectedGamepads = new Map(); // index -> gamepad info
+
+    function updateGamepadStatusBadge() {
+      const count = connectedGamepads.size;
+      if (count === 0) {
+        gamepadStatusEl.textContent = "🎮 Nessun controller";
+        gamepadStatusEl.classList.remove("gamepad-connected");
+      } else {
+        const names = [...connectedGamepads.values()].map(g => g.id.slice(0, 24)).join(", ");
+        gamepadStatusEl.textContent = `🎮 ${count}: ${names}`;
+        gamepadStatusEl.classList.add("gamepad-connected");
+      }
+    }
+
+    function onGamepadConnected(e) {
+      const gp = e.gamepad;
+      connectedGamepads.set(gp.index, { id: gp.id, index: gp.index });
+      appendLog(`GAMEPAD connesso: [${gp.index}] "${gp.id}" – axes=${gp.axes.length} buttons=${gp.buttons.length} mapping="${gp.mapping}"`);
+      updateGamepadStatusBadge();
+      // Ensure canvas is focused so PPSSPP receives all input
+      canvas.focus();
+    }
+
+    function onGamepadDisconnected(e) {
+      const gp = e.gamepad;
+      connectedGamepads.delete(gp.index);
+      appendLog(`GAMEPAD disconnesso: [${gp.index}] "${gp.id}"`);
+      updateGamepadStatusBadge();
+    }
+
+    window.addEventListener("gamepadconnected", onGamepadConnected);
+    window.addEventListener("gamepaddisconnected", onGamepadDisconnected);
+
+    // Probe gamepads already connected (some browsers don't re-fire the event)
+    function probeExistingGamepads() {
+      if (!navigator.getGamepads) return;
+      const pads = navigator.getGamepads();
+      for (const gp of pads) {
+        if (gp && !connectedGamepads.has(gp.index)) {
+          connectedGamepads.set(gp.index, { id: gp.id, index: gp.index });
+          appendLog(`GAMEPAD già presente: [${gp.index}] "${gp.id}" – axes=${gp.axes.length} buttons=${gp.buttons.length}`);
+        }
+      }
+      updateGamepadStatusBadge();
+    }
+
+    function showGamepadDiag() {
+      if (!navigator.getGamepads) {
+        appendLog("GAMEPAD: API navigator.getGamepads non disponibile in questo browser.");
+        return;
+      }
+      const pads = navigator.getGamepads();
+      let found = 0;
+      for (const gp of pads) {
+        if (!gp) continue;
+        found++;
+        const axes = Array.from(gp.axes).map(v => v.toFixed(2)).join(", ");
+        const btns = Array.from(gp.buttons)
+          .map((b, i) => b.pressed ? `B${i}(${b.value.toFixed(2)})` : null)
+          .filter(Boolean).join(", ") || "nessuno";
+        appendLog(`GAMEPAD[${gp.index}] "${gp.id.slice(0, 60)}" mapping=${gp.mapping}`);
+        appendLog(`  axes=[${axes}]`);
+        appendLog(`  pressed=[${btns}]`);
+      }
+      if (!found) appendLog("GAMEPAD: nessun controller rilevato. Premi un pulsante sul controller PS4 prima.");
+    }
+
+    document.getElementById("gamepadBtn").addEventListener("click", () => {
+      probeExistingGamepads();
+      showGamepadDiag();
+      canvas.focus();
+    });
 
     appendLog("Pagina caricata. crossOriginIsolated=" + window.crossOriginIsolated);
     appendLog("Build stamp: " + BUILD_STAMP);
