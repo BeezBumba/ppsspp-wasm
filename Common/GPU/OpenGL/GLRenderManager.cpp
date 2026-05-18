@@ -613,6 +613,17 @@ void GLRenderManager::FlushSync() {
 	}
 
 	{
+#ifdef __EMSCRIPTEN__
+		// On Emscripten there is no render thread (DISABLED emu thread mode).
+		// The queue is drained by ThreadFrameAvailable() from the main loop,
+		// but we are still inside NativeFrame() here, so we must drain inline.
+		// ThreadFrame(false) processes until PRESENT or until queue empty,
+		// and on empty it sets syncDone_ = true.
+		while (!syncDone_) {
+			ThreadFrame(false);
+		}
+		syncDone_ = false;
+#else
 		std::unique_lock<std::mutex> lock(syncMutex_);
 		// Wait for the flush to be hit, since we're syncing.
 		while (!syncDone_) {
@@ -620,5 +631,6 @@ void GLRenderManager::FlushSync() {
 			syncCondVar_.wait(lock);
 		}
 		syncDone_ = false;
+#endif
 	}
 }
