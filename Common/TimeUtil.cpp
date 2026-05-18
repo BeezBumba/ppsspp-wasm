@@ -278,11 +278,10 @@ void sleep_ms(int ms, const char *reason) {
 #elif defined(__EMSCRIPTEN_PTHREADS__)
 	if (EmscriptenIsPthreadWorker()) {
 		emscripten_thread_sleep(ms);
-	} else {
-		emscripten_sleep(ms);
 	}
+	// Main browser thread: cannot block; return immediately.
 #elif defined(__EMSCRIPTEN__)
-	emscripten_sleep(ms);
+	// emscripten_sleep requires ASYNCIFY; skip on main thread.
 #else
 	usleep(ms * 1000);
 #endif
@@ -302,11 +301,10 @@ void sleep_us(int us, const char *reason) {
 #elif defined(__EMSCRIPTEN_PTHREADS__)
 	if (EmscriptenIsPthreadWorker()) {
 		emscripten_thread_sleep(us / 1000);
-	} else {
-		emscripten_sleep(us / 1000);
 	}
+	// Main browser thread: cannot block; return immediately.
 #elif defined(__EMSCRIPTEN__)
-	emscripten_sleep(us / 1000);
+	// emscripten_sleep requires ASYNCIFY; skip on main thread.
 #else
 	usleep(us);
 #endif
@@ -365,11 +363,10 @@ void sleep_precise(double seconds, const char *reason) {
 #elif defined(__EMSCRIPTEN_PTHREADS__)
 	if (EmscriptenIsPthreadWorker()) {
 		emscripten_thread_sleep(seconds * 1000.0);
-	} else {
-		emscripten_sleep(seconds * 1000.0);
 	}
+	// Main browser thread: cannot block; return immediately.
 #elif defined(__EMSCRIPTEN__)
-	emscripten_sleep(seconds * 1000.0);
+	// emscripten_sleep requires ASYNCIFY; skip on main thread.
 #else
 	usleep(seconds * 1000000.0);
 #endif

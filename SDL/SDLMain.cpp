@@ -895,8 +895,16 @@ static void EmuThreadFunc(GraphicsContext *graphicsContext) {
 }
 
 static void EmuThreadStart(GraphicsContext *context) {
+#ifdef __EMSCRIPTEN__
+	// On Emscripten the browser main thread cannot block on Atomics.wait,
+	// so we cannot use a worker thread for the emu loop together with the
+	// condition-variable fence in GLRenderManager.  Run everything on the
+	// main thread instead (DISABLED == no separate emu thread).
+	emuThreadState = (int)EmuThreadState::DISABLED;
+#else
 	emuThreadState = (int)EmuThreadState::START_REQUESTED;
 	emuThread = std::thread(&EmuThreadFunc, context);
+#endif
 }
 
 static void EmuThreadStop(const char *reason) {
@@ -1494,10 +1502,11 @@ static void EmscriptenMainLoop(void *arg) {
 
 	inputTracker->MouseCaptureControl();
 
-	if (emuThreadState != (int)EmuThreadState::DISABLED) {
-		if (graphicsContext->ThreadFrameAvailable()) {
-			presentCounter++;
-		}
+	// Process the GL render queue: both for the DISABLED path (main thread
+	// ran NativeFrame above and pushed tasks) and for the threaded path
+	// (emu worker pushed tasks asynchronously).
+	if (graphicsContext->ThreadFrameAvailable()) {
+		presentCounter++;
 	}
 
 	loopCounter++;
@@ -1948,6 +1957,12 @@ int main(int argc, char *argv[]) {
 	WASM_TRACE("EmuThreadStart begin");
 	EmuThreadStart(graphicsContext);
 	WASM_TRACE("EmuThreadStart done");
+
+	if (emuThreadState == (int)EmuThreadState::DISABLED) {
+		WASM_TRACE("NativeInitGraphics begin (DISABLED emu thread)");
+		NativeInitGraphics(graphicsContext);
+		WASM_TRACE("NativeInitGraphics done");
+	}
 
 	graphicsContext->ThreadStart();
 	WASM_TRACE("graphics ThreadStart done");
