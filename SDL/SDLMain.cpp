@@ -28,6 +28,9 @@ SDLJoystick *joystick = NULL;
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
+#define WASM_TRACE(...) do { fprintf(stderr, "WASM SDL: " __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
+#else
+#define WASM_TRACE(...) do {} while (0)
 #endif
 
 #include "ext/portable-file-dialogs/portable-file-dialogs.h"
@@ -862,19 +865,33 @@ static std::atomic<int> emuThreadState((int)EmuThreadState::DISABLED);
 
 static void EmuThreadFunc(GraphicsContext *graphicsContext) {
 	SetCurrentThreadName("EmuThread");
+	static int emuFrameBeginCount = 0;
+	static int emuFrameEndCount = 0;
 
 	// There's no real requirement that NativeInit happen on this thread.
 	// We just call the update/render loop here.
 	emuThreadState = (int)EmuThreadState::RUNNING;
 
+	WASM_TRACE("EmuThread NativeInitGraphics begin");
 	NativeInitGraphics(graphicsContext);
+	WASM_TRACE("EmuThread NativeInitGraphics done");
 
 	while (emuThreadState != (int)EmuThreadState::QUIT_REQUESTED) {
+		emuFrameBeginCount++;
+		if (emuFrameBeginCount <= 10 || (emuFrameBeginCount % 60) == 0) {
+			WASM_TRACE("EmuThread NativeFrame begin=%d end=%d", emuFrameBeginCount, emuFrameEndCount);
+		}
 		NativeFrame(graphicsContext);
+		emuFrameEndCount++;
+		if (emuFrameEndCount <= 10 || (emuFrameEndCount % 60) == 0) {
+			WASM_TRACE("EmuThread NativeFrame end=%d", emuFrameEndCount);
+		}
 	}
 	emuThreadState = (int)EmuThreadState::STOPPED;
 
+	WASM_TRACE("EmuThread NativeShutdownGraphics begin");
 	NativeShutdownGraphics();
+	WASM_TRACE("EmuThread NativeShutdownGraphics done");
 }
 
 static void EmuThreadStart(GraphicsContext *context) {
@@ -1028,7 +1045,11 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 
 		case SDL_WINDOWEVENT_MINIMIZED:
 		case SDL_WINDOWEVENT_HIDDEN:
+#if defined(__EMSCRIPTEN__)
+			Native_NotifyWindowHidden(false);
+#else
 			Native_NotifyWindowHidden(true);
+#endif
 			break;
 		case SDL_WINDOWEVENT_EXPOSED:
 		case SDL_WINDOWEVENT_SHOWN:
@@ -1426,10 +1447,110 @@ static int printUsage(const char *progname)
 	return 0;
 }
 
+#ifdef __EMSCRIPTEN__
+struct EmscriptenMainLoopState {
+	SDL_Window *window;
+	GraphicsContext *graphicsContext;
+	InputStateTracker *inputTracker;
+	std::string *errorMessage;
+	int x;
+	int y;
+	int w;
+	int h;
+	int mode;
+	int forceGLVersion;
+};
+
+static void EmscriptenMainLoop(void *arg) {
+	auto *state = (EmscriptenMainLoopState *)arg;
+	SDL_Window *window = state->window;
+	GraphicsContext *graphicsContext = state->graphicsContext;
+	InputStateTracker *inputTracker = state->inputTracker;
+	static int loopCounter = 0;
+	static int presentCounter = 0;
+	int eventCount = 0;
+
+	{
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+			eventCount++;
+			ProcessSDLEvent(window, event, inputTracker);
+		}
+	}
+	if (g_QuitRequested || g_RestartRequested) {
+		emscripten_cancel_main_loop();
+		return;
+	}
+	if (emuThreadState == (int)EmuThreadState::DISABLED) {
+		NativeFrame(graphicsContext);
+	}
+	if (g_QuitRequested || g_RestartRequested) {
+		emscripten_cancel_main_loop();
+		return;
+	}
+
+	UpdateTextFocus();
+	UpdateSDLCursor();
+
+	inputTracker->MouseCaptureControl();
+
+	if (emuThreadState != (int)EmuThreadState::DISABLED) {
+		if (graphicsContext->ThreadFrameAvailable()) {
+			presentCounter++;
+		}
+	}
+
+	loopCounter++;
+	if ((loopCounter % 60) == 0) {
+		fprintf(stderr, "WASM loop=%d presents=%d emuState=%d events=%d hidden=%d\n",
+			loopCounter, presentCounter, emuThreadState.load(), eventCount, Native_IsWindowHidden() ? 1 : 0);
+	}
+
+	{
+		std::lock_guard<std::mutex> guard(g_mutexWindow);
+		if (g_windowState.update) {
+			UpdateWindowState(window);
+		}
+	}
+
+	if (g_rebootEmuThread) {
+		fprintf(stderr, "rebooting emu thread");
+		g_rebootEmuThread = false;
+		EmuThreadStop("shutdown");
+		graphicsContext->ThreadFrameUntilCondition([]() {
+			return emuThreadState == (int)EmuThreadState::STOPPED || emuThreadState == (int)EmuThreadState::DISABLED;
+		});
+		EmuThreadJoin();
+		graphicsContext->ThreadEnd();
+		graphicsContext->ShutdownFromRenderThread();
+
+		fprintf(stderr, "OK, shutdown complete. starting up graphics again.\n");
+
+		if (g_Config.iGPUBackend == (int)GPUBackend::OPENGL) {
+			SDLGLGraphicsContext *ctx  = (SDLGLGraphicsContext *)graphicsContext;
+			if (!ctx->Init(window, state->x, state->y, state->w, state->h, state->mode, state->errorMessage, state->forceGLVersion)) {
+				fprintf(stderr, "Failed to reinit graphics.\n");
+			}
+		}
+
+		if (!graphicsContext->InitFromRenderThread(state->errorMessage)) {
+			System_Toast("Graphics initialization failed. Quitting.");
+			g_QuitRequested = true;
+			emscripten_cancel_main_loop();
+			return;
+		}
+
+		EmuThreadStart(graphicsContext);
+		graphicsContext->ThreadStart();
+	}
+}
+#endif
+
 #ifdef _WIN32
 #undef main
 #endif
 int main(int argc, char *argv[]) {
+	WASM_TRACE("main entered argc=%d", argc);
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h"))
 			return printUsage(argv[0]);
@@ -1440,8 +1561,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	TimeInit();
+	WASM_TRACE("TimeInit done");
 
 	g_logManager.EnableOutput(LogOutput::Stdio);
+	WASM_TRACE("stdio logging enabled");
 
 #ifdef HAVE_LIBNX
 	socketInitializeDefault();
@@ -1455,6 +1578,7 @@ int main(int argc, char *argv[]) {
 
 	PROFILE_INIT();
 	glslang::InitializeProcess();
+	WASM_TRACE("profile/glslang init done");
 
 #if PPSSPP_PLATFORM(RPI)
 	bcm_host_init();
@@ -1552,8 +1676,10 @@ int main(int argc, char *argv[]) {
 	std::string version;
 	bool landscape;
 	NativeGetAppInfo(&app_name, &app_name_nice, &landscape, &version);
+	WASM_TRACE("NativeGetAppInfo done app=%s", app_name.c_str());
 
 	bool joystick_enabled = true;
+	WASM_TRACE("SDL_Init begin");
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER | SDL_INIT_AUDIO) < 0) {
 		fprintf(stderr, "Failed to initialize SDL with joystick support. Retrying without.\n");
 		joystick_enabled = false;
@@ -1562,6 +1688,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 	}
+	WASM_TRACE("SDL_Init done joystick=%d", joystick_enabled ? 1 : 0);
 
 	SDL_VERSION(&compiled);
 	SDL_GetVersion(&linked);
@@ -1583,6 +1710,7 @@ int main(int argc, char *argv[]) {
 	g_DesktopWidth = displayMode.w;
 	g_DesktopHeight = displayMode.h;
 	g_RefreshRate = displayMode.refresh_rate;
+	WASM_TRACE("display mode %dx%d refresh=%f", g_DesktopWidth, g_DesktopHeight, g_RefreshRate);
 
 	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
 	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
@@ -1665,6 +1793,7 @@ int main(int argc, char *argv[]) {
 	const char *external_dir = "/tmp";
 #endif
 	NativeInit(remain_argc, (const char **)remain_argv, path, external_dir, nullptr);
+	WASM_TRACE("NativeInit done");
 
 	// Use the setting from the config when initing the window.
 	if (g_Config.bFullScreen) {
@@ -1699,6 +1828,7 @@ int main(int argc, char *argv[]) {
 
 	std::string error_message;
 	if (g_Config.iGPUBackend == (int)GPUBackend::OPENGL) {
+		WASM_TRACE("GL context init begin size=%dx%d mode=0x%x force=%d", w, h, (unsigned int)mode, force_gl_version);
 		SDLGLGraphicsContext *glctx = new SDLGLGraphicsContext();
 		if (glctx->Init(window, x, y, w, h, mode, &error_message, force_gl_version) != 0) {
 #if defined(PPSSPP_SDL_HAS_VULKAN)
@@ -1722,6 +1852,7 @@ int main(int argc, char *argv[]) {
 		} else {
 			graphicsContext = glctx;
 		}
+		WASM_TRACE("GL context init done window=%p graphicsContext=%p", (void *)window, (void *)graphicsContext);
 #if !PPSSPP_PLATFORM(SWITCH) && defined(PPSSPP_SDL_HAS_VULKAN)
 	} else if (g_Config.iGPUBackend == (int)GPUBackend::VULKAN) {
 		SDLVulkanGraphicsContext *vkctx = new SDLVulkanGraphicsContext();
@@ -1747,10 +1878,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	UpdateScreenDPI(window);
+	WASM_TRACE("UpdateScreenDPI done desktopDPI=%f", g_DesktopDPI);
 
 	float dpi_scale = 1.0f / (g_ForcedDPI == 0.0f ? g_DesktopDPI : g_ForcedDPI);
 
 	Native_UpdateScreenScale(w * g_DesktopDPI, h * g_DesktopDPI, UIScaleFactorToMultiplier(g_Config.iUIScaleFactor));
+	WASM_TRACE("Native_UpdateScreenScale done");
 
 	bool mainThreadIsRender = g_Config.iGPUBackend == (int)GPUBackend::OPENGL;
 
@@ -1781,6 +1914,7 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "Init from thread error: '%s'\n", error_message.c_str());
 		return 1;
 	}
+	WASM_TRACE("InitFromRenderThread done");
 
 	// OK, we have a valid graphics backend selected. Let's clear the failures.
 	g_Config.sFailedGPUBackends.clear();
@@ -1793,9 +1927,15 @@ int main(int argc, char *argv[]) {
 	// Note: We re-enable it in text input fields! This is necessary otherwise we don't receive
 	// KeyInputFlags::CHAR events.
 	SDL_StopTextInput();
+	WASM_TRACE("SDL_StopTextInput done");
 
+#if defined(__EMSCRIPTEN__)
+	WASM_TRACE("Skipping SDL audio init on Emscripten for debug");
+#else
 	InitSDLAudioDevice();
+#endif
 	g_audioStartTime = time_now_d();
+	WASM_TRACE("audio init section done");
 
 	if (joystick_enabled) {
 		joystick = new SDLJoystick();
@@ -1803,12 +1943,21 @@ int main(int argc, char *argv[]) {
 		joystick = nullptr;
 	}
 	EnableFZ();
+	WASM_TRACE("EnableFZ done");
 
+	WASM_TRACE("EmuThreadStart begin");
 	EmuThreadStart(graphicsContext);
+	WASM_TRACE("EmuThreadStart done");
 
 	graphicsContext->ThreadStart();
+	WASM_TRACE("graphics ThreadStart done");
 
+#ifdef __EMSCRIPTEN__
+	static InputStateTracker inputTracker{};
+	static std::string emscriptenLoopErrorMessage;
+#else
 	InputStateTracker inputTracker{};
+#endif
 
 #if PPSSPP_PLATFORM(MAC)
 	// setup menu items for macOS
@@ -1825,6 +1974,25 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 	}
+
+#ifdef __EMSCRIPTEN__
+	if (mainThreadIsRender) {
+		static EmscriptenMainLoopState loopState;
+		loopState = {
+			window,
+			graphicsContext,
+			&inputTracker,
+			&emscriptenLoopErrorMessage,
+			x,
+			y,
+			w,
+			h,
+			(int)mode,
+			force_gl_version,
+		};
+		emscripten_set_main_loop_arg(EmscriptenMainLoop, &loopState, 0, true);
+	}
+#endif
 
 	if (!mainThreadIsRender) {
 		// Vulkan mode uses this.
@@ -1856,7 +2024,9 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-	} else while (true) {
+	}
+#ifndef __EMSCRIPTEN__
+	else while (true) {
 		{
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
@@ -1878,17 +2048,8 @@ int main(int argc, char *argv[]) {
 
 		bool renderThreadPaused = Native_IsWindowHidden() && g_Config.bPauseWhenMinimized && emuThreadState != (int)EmuThreadState::DISABLED;
 		if (emuThreadState != (int)EmuThreadState::DISABLED && !renderThreadPaused) {
-#ifdef __EMSCRIPTEN__
-			// ThreadFrame(true) would call pthread_cond_wait → Atomics.wait, which
-			// is forbidden on the browser main thread even with ASYNCIFY.
-			// ThreadFrameAvailable() drains whatever is already queued without
-			// blocking; emscripten_sleep(0) below yields to the browser so the emu
-			// worker thread can run and push more work on the next JS tick.
-			graphicsContext->ThreadFrameAvailable();
-#else
 			if (!graphicsContext->ThreadFrame(true))
 				break;
-#endif
 		}
 
 		{
@@ -1926,15 +2087,8 @@ int main(int argc, char *argv[]) {
 			EmuThreadStart(graphicsContext);
 			graphicsContext->ThreadStart();
 		}
-#ifdef __EMSCRIPTEN__
-		// ASYNCIFY cooperative yield: saves the wasm call stack, returns
-		// control to the browser (lets the emu worker thread run, processes
-		// DOM events, flushes the WebGL commands). Execution resumes here
-		// on the next JS tick. emscripten_set_main_loop must NOT be used
-		// together with ASYNCIFY.
-		emscripten_sleep(0);
-#endif
 	}
+#endif
 
 	EmuThreadStop("shutdown");
 

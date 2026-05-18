@@ -525,28 +525,51 @@ int upnpService(const unsigned int timeout) {
 }
 
 void __UPnPInit(const int timeout_ms) {
+#if defined(__EMSCRIPTEN__)
+	(void)timeout_ms;
+	INFO_LOG(Log::sceNet, "UPnPService: disabled on Emscripten");
+	return;
+#else
 	if (!upnpServiceRunning) {
 		upnpServiceRunning = true;
 		upnpServiceThread = std::thread(upnpService, timeout_ms);
 	}
+#endif
 }
 
 void __UPnPShutdown() {
+#if defined(__EMSCRIPTEN__)
+	upnpReqs.clear();
+	return;
+#else
 	if (upnpServiceRunning) {
 		upnpServiceRunning = false;
 		if (upnpServiceThread.joinable()) {
 			upnpServiceThread.join();
 		}
 	}
+#endif
 }
 
 void UPnP_Add(const char* protocol, unsigned short port, unsigned short intport) {
+#if defined(__EMSCRIPTEN__)
+	(void)protocol;
+	(void)port;
+	(void)intport;
+	return;
+#else
 	std::lock_guard<std::recursive_mutex> upnpGuard(upnpLock);
 	upnpReqs.push_back({ UPNP_CMD_ADD, protocol, port, intport });
+#endif
 }
 
 void UPnP_Remove(const char* protocol, unsigned short port) {
+#if defined(__EMSCRIPTEN__)
+	(void)protocol;
+	(void)port;
+	return;
+#else
 	std::lock_guard<std::recursive_mutex> upnpGuard(upnpLock);
 	upnpReqs.push_back({ UPNP_CMD_REMOVE, protocol, port, port });
+#endif
 }
-

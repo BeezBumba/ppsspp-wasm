@@ -188,6 +188,7 @@
 
   <script>
     const BUILD_DIR = "../build-wasm/";
+    const BUILD_STAMP = String(Date.now());
     const ASSET_DIR = BUILD_DIR + "assets/";
     const MANIFEST = "assets-manifest.txt";
     const VIRTUAL_ASSETS = "/emsdk/upstream/emscripten/cache/sysroot/share/ppsspp/assets";
@@ -203,15 +204,30 @@
     let selectedGame = null;
     let started = false;
 
+    function appendLog(text) {
+      const now = new Date().toLocaleTimeString();
+      const line = `[${now}] ${text}`;
+      logEl.textContent += line + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(line);
+    }
+
     function setStatus(text, isError = false) {
       statusEl.textContent = text;
       statusEl.classList.toggle("error", isError);
+      appendLog((isError ? "STATUS ERROR: " : "STATUS: ") + text);
     }
 
-    function appendLog(text) {
-      logEl.textContent += text + "\n";
-      logEl.scrollTop = logEl.scrollHeight;
-    }
+    appendLog("Pagina caricata. crossOriginIsolated=" + window.crossOriginIsolated);
+    appendLog("Build stamp: " + BUILD_STAMP);
+
+    window.addEventListener("error", (event) => {
+      appendLog("JS ERROR: " + (event.message || event.error || "errore sconosciuto"));
+    });
+
+    window.addEventListener("unhandledrejection", (event) => {
+      appendLog("JS PROMISE ERROR: " + (event.reason?.stack || event.reason || "errore sconosciuto"));
+    });
 
     function dirname(path) {
       const slash = path.lastIndexOf("/");
@@ -219,6 +235,7 @@
     }
 
     async function preloadAssets(FS) {
+      appendLog("Carico manifest asset: " + MANIFEST);
       const manifestResponse = await fetch(MANIFEST, { cache: "no-store" });
       if (!manifestResponse.ok) {
         throw new Error("Manifest asset non trovato: " + manifestResponse.status);
@@ -230,6 +247,7 @@
         .filter(Boolean);
 
       FS.mkdirTree(VIRTUAL_ASSETS);
+      appendLog("Asset nel manifest: " + files.length);
       for (let i = 0; i < files.length; i++) {
         const rel = files[i];
         const target = VIRTUAL_ASSETS + "/" + rel;
@@ -245,6 +263,7 @@
         }
         FS.writeFile(target, new Uint8Array(await response.arrayBuffer()));
       }
+      appendLog("Asset caricati in MEMFS.");
     }
 
     async function preloadGame(FS) {
@@ -257,6 +276,7 @@
       const gamePath = VIRTUAL_GAME_DIR + "/" + safeName;
       setStatus("Caricamento gioco in memoria: " + selectedGame.name);
       FS.writeFile(gamePath, new Uint8Array(await selectedGame.arrayBuffer()));
+      appendLog("Gioco montato in MEMFS: " + gamePath);
       return gamePath;
     }
 
@@ -265,6 +285,7 @@
         return;
       }
       started = true;
+      appendLog("Start premuto.");
       startBtn.disabled = true;
       fileInput.disabled = true;
       canvas.focus();
@@ -280,13 +301,18 @@
         canvas,
         arguments: [],
         locateFile(path) {
-          return BUILD_DIR + path;
+          let url = BUILD_DIR + path;
+          if (path.endsWith(".wasm") || path.endsWith(".worker.js")) {
+            url += "?v=" + BUILD_STAMP;
+          }
+          appendLog("locateFile: " + path + " -> " + url);
+          return url;
         },
         print(text) {
-          appendLog(text);
+          appendLog("stdout: " + text);
         },
         printErr(text) {
-          appendLog(text);
+          appendLog("stderr: " + text);
         },
         setStatus(text) {
           if (text) {
@@ -294,11 +320,13 @@
           }
         },
         monitorRunDependencies(left) {
+          appendLog("Run dependencies rimaste: " + left);
           if (left > 0) {
             setStatus(`Inizializzazione runtime: ${left}`);
           }
         },
         preRun: [function () {
+          appendLog("preRun iniziato.");
           addRunDependency("ppsspp-assets");
           (async () => {
             try {
@@ -310,23 +338,29 @@
               }
               setStatus("Avvio PPSSPP...");
             } catch (error) {
+              appendLog("preRun fallito: " + (error?.stack || error));
               setStatus(error.message || String(error), true);
               throw error;
             } finally {
+              appendLog("preRun completato, rimuovo dependency asset.");
               removeRunDependency("ppsspp-assets");
             }
           })();
         }],
         onRuntimeInitialized() {
+          appendLog("Runtime inizializzato.");
           setStatus(gameArg ? "Runtime pronto, avvio gioco..." : "Runtime pronto, avvio UI...");
         },
         onAbort(reason) {
+          appendLog("Abort runtime: " + reason);
           setStatus("Abort: " + reason, true);
         }
       };
 
       const script = document.createElement("script");
-      script.src = BUILD_DIR + "PPSSPPSDL.js";
+      script.src = BUILD_DIR + "PPSSPPSDL.js?v=" + BUILD_STAMP;
+      appendLog("Carico script: " + script.src);
+      script.onload = () => appendLog("Script PPSSPPSDL.js caricato.");
       script.onerror = () => setStatus("Impossibile caricare PPSSPPSDL.js", true);
       document.body.appendChild(script);
     }
