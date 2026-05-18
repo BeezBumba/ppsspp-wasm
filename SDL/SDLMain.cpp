@@ -1474,14 +1474,10 @@ static void EmscriptenMainLoop(void *arg) {
 	SDL_Window *window = state->window;
 	GraphicsContext *graphicsContext = state->graphicsContext;
 	InputStateTracker *inputTracker = state->inputTracker;
-	static int loopCounter = 0;
-	static int presentCounter = 0;
-	int eventCount = 0;
 
 	{
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
-			eventCount++;
 			ProcessSDLEvent(window, event, inputTracker);
 		}
 	}
@@ -1505,15 +1501,7 @@ static void EmscriptenMainLoop(void *arg) {
 	// Process the GL render queue: both for the DISABLED path (main thread
 	// ran NativeFrame above and pushed tasks) and for the threaded path
 	// (emu worker pushed tasks asynchronously).
-	if (graphicsContext->ThreadFrameAvailable()) {
-		presentCounter++;
-	}
-
-	loopCounter++;
-	if ((loopCounter % 60) == 0) {
-		fprintf(stderr, "WASM loop=%d presents=%d emuState=%d events=%d hidden=%d\n",
-			loopCounter, presentCounter, emuThreadState.load(), eventCount, Native_IsWindowHidden() ? 1 : 0);
-	}
+	graphicsContext->ThreadFrameAvailable();
 
 	{
 		std::lock_guard<std::mutex> guard(g_mutexWindow);

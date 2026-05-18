@@ -1175,8 +1175,16 @@ void GLQueueRunner::PerformRenderPass(const GLRStep &step, bool first, bool last
 					curTex[slot] = &c.bind_fb_texture.framebuffer->z_stencil_texture;
 				}
 				// This should be uncommon, so always set the mode.
-				glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_STENCIL_TEXTURE_MODE, GL_DEPTH_COMPONENT);
+				if (gl_extensions.ARB_stencil_texturing) {
+					glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_STENCIL_TEXTURE_MODE, GL_DEPTH_COMPONENT);
+				}
 			} else if (c.bind_fb_texture.aspect == GL_STENCIL_BUFFER_BIT) {
+				if (!gl_extensions.ARB_stencil_texturing) {
+					WARN_LOG_REPORT_ONCE(stencil_texture_unsupported, Log::G3D, "Stencil texture sampling requested but not supported by this GL context.");
+					glBindTexture(GL_TEXTURE_2D, 0);
+					curTex[slot] = nullptr;
+					break;
+				}
 				if (curTex[slot] != &c.bind_fb_texture.framebuffer->z_stencil_texture) {
 					glBindTexture(GL_TEXTURE_2D, c.bind_fb_texture.framebuffer->z_stencil_texture.texture);
 					curTex[slot] = &c.bind_fb_texture.framebuffer->z_stencil_texture;

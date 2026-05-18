@@ -175,37 +175,15 @@ bool GLRenderManager::ThreadFrame(bool waitIfEmpty) {
 bool GLRenderManager::ThreadFrameAvailable() {
 	_assert_(runCompileThread_);
 	bool frameComplete = false;
-	static int calls = 0;
-	static int emptyCalls = 0;
-	static int submitTasks = 0;
-	static int syncTasks = 0;
-	static int presentTasks = 0;
-	static int otherTasks = 0;
-	calls++;
 	while (true) {
 		GLRRenderThreadTask *task = nullptr;
 		{
 			std::unique_lock<std::mutex> lock(pushMutex_);
 			if (renderThreadQueue_.empty()) {
-				emptyCalls++;
 				break; // nothing left – do NOT touch syncDone_
 			}
 			task = renderThreadQueue_.front();
 			renderThreadQueue_.pop();
-		}
-		switch (task->runType) {
-		case GLRRunType::SUBMIT:
-			submitTasks++;
-			break;
-		case GLRRunType::SYNC:
-			syncTasks++;
-			break;
-		case GLRRunType::PRESENT:
-			presentTasks++;
-			break;
-		default:
-			otherTasks++;
-			break;
 		}
 		if (Run(*task)) {
 			// Run() returns true on PRESENT – frame has been swapped.
@@ -215,12 +193,6 @@ bool GLRenderManager::ThreadFrameAvailable() {
 		}
 		delete task;
 	}
-#if defined(__EMSCRIPTEN__)
-	if ((calls % 60) == 0) {
-		fprintf(stderr, "WASM GL queue calls=%d empty=%d submit=%d sync=%d present=%d other=%d frameComplete=%d\n",
-			calls, emptyCalls, submitTasks, syncTasks, presentTasks, otherTasks, frameComplete ? 1 : 0);
-	}
-#endif
 	return frameComplete;
 }
 
@@ -418,15 +390,20 @@ void GLRenderManager::BeginFrame(bool enableProfiling) {
 		std::unique_lock<std::mutex> lock(frameData.fenceMutex);
 		VLOG("PUSH: BeginFrame (curFrame = %d, readyForFence = %d, time=%0.3f)", curFrame, (int)frameData.readyForFence, time_now_d());
 #if defined(__EMSCRIPTEN__)
-		if (!frameData.readyForFence) {
-			fprintf(stderr, "WASM GL BeginFrame waiting curFrame=%d frameId=%d inflight=%d\n", curFrame, frameData.frameId, inflightFrames_);
+		// The browser main thread cannot safely block here: on WASM we also
+		// execute the queued GL work from this same thread.  Drain available
+		// render tasks until the previous use of this frame slot presents.
+		while (!frameData.readyForFence) {
+			lock.unlock();
+			if (!ThreadFrame(false)) {
+				sleep_ms(0, "wasm gl fence poll");
+			}
+			lock.lock();
 		}
-#endif
+#else
 		while (!frameData.readyForFence) {
 			frameData.fenceCondVar.wait(lock);
 		}
-#if defined(__EMSCRIPTEN__)
-		fprintf(stderr, "WASM GL BeginFrame acquired curFrame=%d frameId=%d\n", curFrame, frameData.frameId);
 #endif
 		frameData.readyForFence = false;
 	}

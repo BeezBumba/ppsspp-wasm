@@ -17,6 +17,10 @@
 
 #include "Common/Log.h"
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#endif
+
 #if defined(USING_GLES2)
 #if defined(__ANDROID__)
 PFNEGLGETSYSTEMTIMEFREQUENCYNVPROC eglGetSystemTimeFrequencyNV;
@@ -409,6 +413,21 @@ bool CheckGLExtensions() {
 		gl_extensions.EXT_depth_clamp = g_set_gl_extensions.count("GL_EXT_depth_clamp") != 0;
 		gl_extensions.EXT_disjoint_timer_query = g_set_gl_extensions.count("GL_EXT_disjoint_timer_query") != 0;
 		gl_extensions.APPLE_clip_distance = g_set_gl_extensions.count("GL_APPLE_clip_distance") != 0;
+
+#if defined(__EMSCRIPTEN__)
+		// WebGL2 exposes stencil sampling behind WEBGL_stencil_texturing.
+		// Enabling it is required before GL_DEPTH_STENCIL_TEXTURE_MODE is a
+		// valid texParameter pname in the browser.
+		gl_extensions.ARB_stencil_texturing = EM_ASM_INT({
+			var ctx = (typeof GL !== 'undefined' && GL.currentContext) ? GL.currentContext.GLctx : null;
+			return ctx && ctx.getExtension('WEBGL_stencil_texturing') ? 1 : 0;
+		}) != 0;
+		if (gl_extensions.ARB_stencil_texturing) {
+			INFO_LOG(Log::G3D, "WebGL WEBGL_stencil_texturing enabled.");
+		} else {
+			WARN_LOG(Log::G3D, "WebGL WEBGL_stencil_texturing is unavailable; stencil readback effects may render incorrectly.");
+		}
+#endif
 
 #if defined(__ANDROID__)
 		// On Android, incredibly, this is not consistently non-zero! It does seem to have the same value though.

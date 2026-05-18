@@ -233,6 +233,22 @@
     appendLog("Pagina caricata. crossOriginIsolated=" + window.crossOriginIsolated);
     appendLog("Build stamp: " + BUILD_STAMP);
 
+    function probeWebGLFeatures() {
+      const probeCanvas = document.createElement("canvas");
+      const gl = probeCanvas.getContext("webgl2");
+      if (!gl) {
+        appendLog("WebGL2 non disponibile: il rendering GLES3/WebGL2 non puo' partire correttamente.");
+        return;
+      }
+      const stencilTexturing = !!gl.getExtension("WEBGL_stencil_texturing");
+      appendLog("WebGL2 disponibile. WEBGL_stencil_texturing=" + stencilTexturing);
+      if (!stencilTexturing) {
+        appendLog("ATTENZIONE: senza WEBGL_stencil_texturing alcuni giochi possono mostrare scene nere o effetti mancanti.");
+      }
+    }
+
+    probeWebGLFeatures();
+
     window.addEventListener("error", (event) => {
       appendLog("JS ERROR: " + (event.message || event.error || "errore sconosciuto"));
     });
@@ -274,6 +290,10 @@
           throw new Error(`Asset non trovato: ${rel} (${response.status})`);
         }
         FS.writeFile(target, new Uint8Array(await response.arrayBuffer()));
+      }
+      const fontAtlasPath = VIRTUAL_ASSETS + "/font_atlas.meta";
+      if (!FS.analyzePath(fontAtlasPath).exists) {
+        throw new Error("Asset critico mancante: " + fontAtlasPath);
       }
       appendLog("Asset caricati in MEMFS.");
     }
@@ -348,6 +368,7 @@
               if (gameArg) {
                 Module.arguments.push(gameArg);
               }
+              appendLog("Argomenti PPSSPP: " + JSON.stringify(Module.arguments));
               setStatus("Avvio PPSSPP...");
             } catch (error) {
               appendLog("preRun fallito: " + (error?.stack || error));

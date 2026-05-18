@@ -111,8 +111,10 @@ bool FramebufferManagerGLES::ReadbackStencilbuffer(Draw::Framebuffer *fbo, int x
 
 	// Unsupported below GLES 3.1 or without ARB_stencil_texturing.
 	// OES_texture_stencil8 is related, but used to specify texture data.
-	if ((gl_extensions.IsGLES && !gl_extensions.VersionGEThan(3, 1)) && !gl_extensions.ARB_stencil_texturing)
+	if ((gl_extensions.IsGLES && !gl_extensions.VersionGEThan(3, 1)) && !gl_extensions.ARB_stencil_texturing) {
+		WARN_LOG_REPORT_ONCE(stencil_readback_unsupported, Log::G3D, "Stencil readback is unavailable on this GLES/WebGL context.");
 		return false;
+	}
 
 	// Pixel size always 4 here because we always request RGBA back.
 	const u32 bufSize = w * h * 4;

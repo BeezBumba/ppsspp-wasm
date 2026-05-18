@@ -23,9 +23,20 @@
 
 #ifdef __EMSCRIPTEN__
 #include <SDL2/SDL.h>
+#include <stdio.h>
+
+static void *FindEmscriptenGLProc(const char *name, int required) {
+	void *proc = SDL_GL_GetProcAddress(name);
+	if (!proc && required) {
+		fprintf(stderr, "WASM GL: missing required proc %s\n", name);
+	}
+	return proc;
+}
+
 // On Emscripten/WebGL2, load GLES3 function pointers via SDL_GL_GetProcAddress.
 GLboolean gl3stubInit() {
-    #define FIND_PROC(s) s = (void*)SDL_GL_GetProcAddress(#s)
+    #define FIND_PROC(s) s = FindEmscriptenGLProc(#s, 1)
+    #define FIND_OPTIONAL_PROC(s) s = FindEmscriptenGLProc(#s, 0)
     FIND_PROC(glReadBuffer);
     FIND_PROC(glDrawRangeElements);
     FIND_PROC(glTexImage3D);
@@ -40,9 +51,9 @@ GLboolean gl3stubInit() {
     FIND_PROC(glEndQuery);
     FIND_PROC(glGetQueryiv);
     FIND_PROC(glGetQueryObjectuiv);
-    glQueryCounter = (void*)SDL_GL_GetProcAddress("glQueryCounterEXT");
-    glGetQueryObjecti64v = (void*)SDL_GL_GetProcAddress("glGetQueryObjecti64vEXT");
-    glGetQueryObjectui64v = (void*)SDL_GL_GetProcAddress("glGetQueryObjectui64vEXT");
+    glQueryCounter = FindEmscriptenGLProc("glQueryCounterEXT", 0);
+    glGetQueryObjecti64v = FindEmscriptenGLProc("glGetQueryObjecti64vEXT", 0);
+    glGetQueryObjectui64v = FindEmscriptenGLProc("glGetQueryObjectui64vEXT", 0);
     FIND_PROC(glUnmapBuffer);
     FIND_PROC(glGetBufferPointerv);
     FIND_PROC(glDrawBuffers);
@@ -134,14 +145,15 @@ GLboolean gl3stubInit() {
     FIND_PROC(glTexStorage3D);
     FIND_PROC(glGetInternalformativ);
     /* EXT_blend_func_extended */
-    FIND_PROC(glBindFragDataLocationIndexedEXT);
-    FIND_PROC(glBindFragDataLocationEXT);
-    FIND_PROC(glGetProgramResourceLocationIndexEXT);
-    FIND_PROC(glGetFragDataIndexEXT);
+    FIND_OPTIONAL_PROC(glBindFragDataLocationIndexedEXT);
+    FIND_OPTIONAL_PROC(glBindFragDataLocationEXT);
+    FIND_OPTIONAL_PROC(glGetProgramResourceLocationIndexEXT);
+    FIND_OPTIONAL_PROC(glGetFragDataIndexEXT);
     /* EXT_buffer_storage */
-    FIND_PROC(glBufferStorageEXT);
+    FIND_OPTIONAL_PROC(glBufferStorageEXT);
     /* OES_copy_image */
-    FIND_PROC(glCopyImageSubDataOES);
+    FIND_OPTIONAL_PROC(glCopyImageSubDataOES);
+    #undef FIND_OPTIONAL_PROC
     #undef FIND_PROC
     // On Emscripten, always return GL_TRUE even if some extensions are unavailable.
     // Core WebGL2 functions must be present; optional EXT functions may be null.
@@ -523,4 +535,3 @@ GLboolean gl3stubInit() {
 #endif // PPSPP_PLATFORM(IOS)
 
 #endif // GLES2
-
