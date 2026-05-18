@@ -1,267 +1,520 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PPSSPP Wasm Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PPSSPP Web</title>
   <style>
     :root {
       color-scheme: dark;
-      --bg: #101214;
-      --panel: #1b2025;
-      --line: #303842;
-      --text: #eef3f7;
-      --muted: #aeb8c2;
-      --accent: #36c08a;
-      --danger: #ff7777;
+      --bg:        #080a0c;
+      --surface:   #0f1318;
+      --surface2:  #171d24;
+      --surface3:  #1d242e;
+      --border:    #1e2730;
+      --border2:   #273240;
+      --text:      #dce8f2;
+      --muted:     #687c8f;
+      --accent:    #00d4aa;
+      --accent2:   #00b391;
+      --warn:      #f5a623;
+      --danger:    #ff5f5f;
+      --info:      #5ba4e8;
+      --h:         48px;      /* header height */
+      --radius:    10px;
+      --radius-sm: 6px;
+      --shadow:    0 8px 32px rgba(0,0,0,.6);
+      --glow:      0 0 0 2px rgba(0,212,170,.3);
     }
-
-    * {
-      box-sizing: border-box;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      margin: 0;
-      height: 100vh;
-      overflow: hidden;
-      background: var(--bg);
-      color: var(--text);
-      font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
+      height: 100dvh; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font: 13px/1.5 "Inter", system-ui, -apple-system, sans-serif;
+      display: flex; flex-direction: column;
     }
 
-    header,
-    footer {
-      padding: 12px 16px;
-      background: var(--panel);
-      border-color: var(--line);
-    }
-
+    /* ── Header ──────────────────────────────────────────── */
     header {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--line);
-      flex-wrap: wrap;
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 12px; height: var(--h); flex-shrink: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      /* subtle glass on supported browsers */
+      backdrop-filter: blur(0);
     }
-
-    h1 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 650;
+    .logo {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 14px; font-weight: 700; letter-spacing: -.2px;
+      color: var(--text); flex-shrink: 0;
     }
+    .logo svg { flex-shrink: 0; }
+    .hbar-sep { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; }
+    .hbar-group { display: flex; align-items: center; gap: 5px; }
+    .hbar-end { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
-    .controls {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
+    /* ── Buttons ─────────────────────────────────────────── */
+    button, label.btn, select.btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      border: 1px solid var(--border2); background: var(--surface2);
+      color: var(--text); border-radius: var(--radius-sm);
+      padding: 0 11px; height: 32px; min-width: 32px;
+      font: inherit; font-size: 12.5px; line-height: 1;
+      cursor: pointer; white-space: nowrap; outline: none;
+      transition: background .12s, border-color .12s, box-shadow .12s, opacity .12s;
+      -webkit-user-select: none; user-select: none;
     }
-
-    button,
-    label.file {
-      border: 1px solid var(--line);
-      background: #252b31;
-      color: var(--text);
-      border-radius: 6px;
-      padding: 8px 11px;
-      cursor: pointer;
-      font: inherit;
-    }
-
+    button:hover, label.btn:hover { background: var(--surface3); border-color: var(--border2); }
+    button:active, label.btn:active { transform: scale(.97); }
+    button:focus-visible, select.btn:focus-visible { box-shadow: var(--glow); border-color: var(--accent); }
     button.primary {
-      background: var(--accent);
-      color: #07110d;
-      border-color: var(--accent);
-      font-weight: 700;
+      background: var(--accent); color: #051410;
+      border-color: var(--accent2); font-weight: 700; font-size: 13px; padding: 0 16px;
     }
-
-    button:disabled {
-      opacity: .45;
-      cursor: not-allowed;
+    button.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+    button.icon-btn { padding: 0; width: 32px; font-size: 15px; }
+    button.panel-btn {
+      background: transparent; border-color: var(--border2);
+      color: var(--muted); font-size: 12px;
     }
-
-    input[type="file"] {
-      display: none;
+    button.panel-btn:hover { color: var(--text); background: var(--surface2); }
+    body.panel-open button.panel-btn { color: var(--accent); border-color: rgba(0,212,170,.4); background: rgba(0,212,170,.07); }
+    button:disabled, label.btn.disabled, select.btn:disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
+    input[type="file"] { display: none; }
+    select.btn {
+      appearance: none; -webkit-appearance: none; padding: 0 26px 0 11px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23687c8f'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 8px center;
     }
+    select.btn option { background: var(--surface2); }
 
-    main {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px;
-      min-height: 0;
+    /* ── Badges ──────────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; padding: 2px 9px; border-radius: 20px;
+      border: 1px solid var(--border2); background: var(--surface2);
+      color: var(--muted); white-space: nowrap;
+      max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+      cursor: default; transition: color .2s, border-color .2s, background .2s;
+    }
+    .badge.active { color: var(--accent); border-color: rgba(0,212,170,.35); background: rgba(0,212,170,.07); }
+    .badge.warn   { color: var(--warn);   border-color: rgba(245,166,35,.35); }
+    .badge.error  { color: var(--danger); border-color: rgba(255,95,95,.35); }
+    /* hide badges on very small screens */
+    @media (max-width: 520px) { .badge { display: none; } }
+
+    /* ── Main area ───────────────────────────────────────── */
+    .body-main {
+      flex: 1; min-height: 0;
+      display: grid; grid-template-columns: 1fr;
       overflow: hidden;
     }
+    body.panel-open .body-main { grid-template-columns: minmax(0,1fr) 340px; }
 
+    /* ── Stage (canvas area) ─────────────────────────────── */
     .stage {
-      display: grid;
-      place-items: center;
-      min-height: 0;
-      padding: 14px;
-      background: #07090b;
+      position: relative; display: flex;
+      align-items: center; justify-content: center;
+      background: #040506; min-height: 0; overflow: hidden;
+      padding: 12px;
     }
-
     canvas {
-      width: min(100%, calc((100vh - 130px) * 16 / 9));
+      display: block;
+      width: min(100%, calc((100dvh - var(--h)) * 16 / 9));
       aspect-ratio: 16 / 9;
-      max-height: calc(100vh - 130px);
+      max-height: calc(100dvh - var(--h));
       background: #000;
-      outline: 1px solid var(--line);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
+      touch-action: none;
+    }
+    body.panel-open canvas {
+      width: min(100%, calc((100dvh - var(--h)) * 16 / 9));
     }
 
+    /* ── Loading overlay ─────────────────────────────────── */
+    #loadOverlay {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      background: rgba(4,5,6,.85); backdrop-filter: blur(6px);
+      border-radius: var(--radius-sm); pointer-events: none;
+      opacity: 0; transition: opacity .25s;
+    }
+    #loadOverlay.visible { opacity: 1; pointer-events: all; }
+    .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid var(--border2); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .load-label { font-size: 13px; color: var(--muted); text-align: center; max-width: 260px; line-height: 1.5; }
+    .progress-wrap { width: 200px; height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+    #progressBar { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width .15s ease; }
+
+    /* ── Floating badges on stage ────────────────────────── */
+    #fpsBadge {
+      position: absolute; top: 20px; left: 20px;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,.08); color: var(--accent);
+      font-size: 11px; font-weight: 700; padding: 3px 8px;
+      border-radius: var(--radius-sm); display: none; pointer-events: none;
+      letter-spacing: .04em;
+    }
+    /* status mini-bar overlaid bottom-left of stage */
+    #stageMini {
+      position: absolute; bottom: 20px; left: 20px;
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(0,0,0,.65); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: var(--radius-sm); padding: 4px 10px;
+      font-size: 11px; color: var(--muted); pointer-events: none;
+      max-width: calc(100% - 40px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .stage-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+      background: var(--muted); transition: background .3s;
+    }
+    .stage-dot.ok  { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+    .stage-dot.err { background: var(--danger); box-shadow: 0 0 5px var(--danger); }
+    .stage-dot.run { background: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ── Side panel ──────────────────────────────────────── */
     aside {
-      border-left: 1px solid var(--line);
-      background: #15191d;
-      min-height: 0;
-      display: grid;
-      grid-template-rows: auto 1fr;
+      display: none; /* hidden by default */
+      grid-template-rows: auto auto 1fr;
+      border-left: 1px solid var(--border); background: var(--surface);
+      min-height: 0; overflow: hidden;
     }
+    body.panel-open aside { display: grid; }
 
-    .status {
-      padding: 12px;
-      border-bottom: 1px solid var(--line);
-      color: var(--muted);
-      min-height: 44px;
+    .status-bar {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 9px 14px; border-bottom: 1px solid var(--border);
+      font-size: 11.5px; color: var(--muted); min-height: 40px; flex-shrink: 0;
     }
-
-    pre {
-      margin: 0;
-      padding: 12px;
-      white-space: pre-wrap;
-      overflow-y: auto;
-      overflow-x: hidden;
-      color: #d9e3ea;
-      font-size: 12px;
-      min-height: 0;
-      word-break: break-all;
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+      flex-shrink: 0; margin-top: 3px; transition: background .3s;
     }
+    .status-dot.ok  { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    .status-dot.err { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+    .status-dot.run { background: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
+    #statusText { flex: 1; line-height: 1.4; }
 
-    footer {
-      border-top: 1px solid var(--line);
-      color: var(--muted);
+    .tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .tab {
+      flex: 1; padding: 7px 0; text-align: center;
+      font-size: 11.5px; font-weight: 600; color: var(--muted);
+      cursor: pointer; border-bottom: 2px solid transparent;
+      transition: color .12s, border-color .12s;
+      -webkit-user-select: none; user-select: none;
     }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; min-height: 0; overflow: hidden; flex: 1; }
+    .tab-panel.active { display: flex; flex-direction: column; }
 
-    .error {
-      color: var(--danger);
+    #logPanel { position: relative; flex: 1; overflow: hidden; min-height: 0; }
+    #log {
+      position: absolute; inset: 0; margin: 0; padding: 10px 12px;
+      white-space: pre-wrap; overflow-y: auto; overflow-x: hidden;
+      font-family: "JetBrains Mono","Fira Code","Cascadia Code",ui-monospace,monospace;
+      font-size: 10.5px; line-height: 1.7; word-break: break-all;
+      color: #b8cdd9; scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
     }
+    #log .l-err  { color: #ff6b6b; }
+    #log .l-warn { color: #f5a623; }
+    #log .l-ok   { color: #2ed4a0; }
+    #log .l-info { color: #5ba4e8; }
+    #log .l-dim  { color: #3e5060; }
+    #log .l-ts   { color: #2c3e4a; }
 
-    .gamepad-connected {
-      background: #0d2318 !important;
-      border-color: var(--accent) !important;
-      color: var(--accent) !important;
+    .log-toolbar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-top: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
     }
+    .log-toolbar button { padding: 0 8px; height: 26px; font-size: 11px; }
+    #logFilter {
+      flex: 1; background: var(--bg); border: 1px solid var(--border2);
+      border-radius: var(--radius-sm); color: var(--text);
+      font: 11px/1 inherit; padding: 0 8px; height: 26px; outline: none;
+    }
+    #logFilter:focus { border-color: var(--accent); }
+    #logFilter::placeholder { color: var(--muted); }
 
-    @media (max-width: 900px) {
-      main {
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(0, 1fr) 200px;
-        overflow: hidden;
-      }
+    #infoPanel {
+      padding: 12px 14px; font-size: 11.5px;
+      overflow-y: auto; color: var(--muted); flex: 1;
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+    }
+    .info-group { margin-bottom: 16px; }
+    .info-group h3 {
+      font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 7px;
+      padding-bottom: 4px; border-bottom: 1px solid var(--border);
+    }
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 3.5px 0; gap: 8px;
+    }
+    .info-key { color: var(--muted); flex-shrink: 0; font-size: 11px; }
+    .info-val { color: var(--text); font-weight: 500; text-align: right; word-break: break-word; font-size: 11px; }
+    .info-val.good { color: var(--accent); }
+    .info-val.bad  { color: var(--danger); }
+    .info-val.warn { color: var(--warn); }
 
-      aside {
-        border-left: 0;
-        border-top: 1px solid var(--line);
-        overflow: hidden;
-      }
+    /* ── Mobile: panel becomes a bottom drawer ───────────── */
+    @media (max-width: 640px) {
+      /* Shrink header height */
+      :root { --h: 44px; }
 
+      /* Header: compact, hide separators, icon-only buttons */
+      header { padding: 0 max(8px, env(safe-area-inset-left)) 0 max(8px, env(safe-area-inset-right)); gap: 4px; }
+      .hbar-sep { display: none; }
+      .btn-lbl { display: none; }
+      button, label.btn { height: 40px; min-width: 40px; padding: 0 10px; }
+      .panel-btn { padding: 0 10px; }
+      .logo { flex-shrink: 1; min-width: 0; overflow: hidden; }
+      .logo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      /* Full-bleed canvas — no wasted padding */
+      .stage { padding: 0; background: #000; }
       canvas {
-        width: 100%;
-        max-height: none;
+        width: 100vw;
+        max-height: calc(100dvh - var(--h));
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
       }
+
+      /* Panel: full-screen bottom drawer */
+      body.panel-open .body-main { grid-template-columns: 1fr; }
+      body.panel-open aside {
+        position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+        height: 55dvh; border-left: none;
+        border-top: 1px solid var(--border2);
+        box-shadow: 0 -12px 40px rgba(0,0,0,.7);
+        border-radius: var(--radius) var(--radius) 0 0;
+        padding-bottom: env(safe-area-inset-bottom);
+        /* switch to flex so ::before handle doesn't break grid row sizing */
+        display: flex; flex-direction: column;
+      }
+      /* Drawer drag handle */
+      body.panel-open aside::before {
+        content: ''; display: block; width: 36px; height: 4px;
+        background: var(--border2); border-radius: 2px;
+        margin: 8px auto 4px;
+        flex-shrink: 0;
+      }
+
+      /* Hide GPU select on tiny screens */
+      #gpuSelectWrap { display: none; }
+      .hbar-sep.gpu-sep { display: none; }
+
+      /* Stage overlays: smaller & closer to edges */
+      #fpsBadge  { top: 8px; left: 8px; font-size: 9px; padding: 2px 6px; }
+      #stageMini { bottom: 8px; left: 8px; font-size: 10px; padding: 3px 8px; }
     }
+    @media (max-width: 400px) {
+      button, label.btn { padding: 0 8px; }
+      .logo span { font-size: 12px; }
+    }
+
+    /* ── Scrollbars ──────────────────────────────────────── */
+    ::-webkit-scrollbar       { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a4f60; }
   </style>
 </head>
 <body>
+
   <header>
-    <h1>PPSSPP Wasm Test</h1>
-    <div class="controls">
-      <label class="file">
-        ISO/CSO/PBP
+    <span class="logo">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+        <rect width="20" height="20" rx="5" fill="#00d4aa" fill-opacity=".12"/>
+        <polygon points="5,15 10,4 15,15" fill="#00d4aa"/>
+      </svg>
+      <span>PPSSPP Web</span>
+    </span>
+
+    <div class="hbar-sep"></div>
+
+    <div class="hbar-group">
+      <label class="btn" id="fileLabel">
+        &#128194;<span class="btn-lbl"> Open ROM</span>
         <input id="gameFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
       </label>
-      <button id="startBtn" class="primary">Avvia</button>
-      <button id="audioBtn">Audio</button>
-      <button id="fullscreenBtn">Fullscreen</button>
-      <button id="gamepadBtn">🎮 Gamepad</button>
-      <span id="gamepadStatus" style="font-size:12px;padding:4px 8px;border-radius:4px;background:#252b31;border:1px solid var(--line);color:var(--muted)">🎮 Nessun controller</span>
+      <button id="startBtn" class="primary">&#9654;<span class="btn-lbl"> Launch</span></button>
+    </div>
+
+    <div class="hbar-sep"></div>
+
+    <div class="hbar-group">
+      <button id="fullscreenBtn" class="icon-btn" title="Fullscreen">&#x26F6;</button>
+      <button id="gamepadBtn"    title="Scan / reconnect gamepad">&#127918;<span class="btn-lbl"> Gamepad</span></button>
+    </div>
+
+    <div class="hbar-sep gpu-sep"></div>
+    <div class="hbar-group" id="gpuSelectWrap">
+      <select id="gpuSelect" class="btn" title="GPU preference">
+        <option value="high-performance">&#9889; Dedicated</option>
+        <option value="low-power">&#128267; Integrated</option>
+        <option value="default">&#128421; Default</option>
+      </select>
+    </div>
+
+    <div class="hbar-end">
+      <span id="gamepadBadge" class="badge" title="Gamepad">&#127918; No controller</span>
+      <span id="gpuBadge"     class="badge" title="GPU">&#128421; Detecting&hellip;</span>
+      <button id="panelToggleBtn" class="panel-btn" title="Toggle console panel">&#9783;<span class="btn-lbl"> Panel</span></button>
     </div>
   </header>
 
-  <main>
+  <div class="body-main">
     <section class="stage">
       <canvas id="canvas" width="1280" height="720" tabindex="0"></canvas>
+      <div id="loadOverlay">
+        <div class="spinner"></div>
+        <div class="load-label" id="loadLabel">Initializing&hellip;</div>
+        <div class="progress-wrap"><div id="progressBar"></div></div>
+      </div>
+      <div id="fpsBadge">0 FPS</div>
+      <div id="stageMini">
+        <span class="stage-dot" id="stageDot"></span>
+        <span id="stageMiniText">Ready</span>
+      </div>
     </section>
-    <aside>
-      <div id="status" class="status">Pronto. Scegli un file o avvia solo la UI.</div>
-      <pre id="log"></pre>
-    </aside>
-  </main>
 
-  <footer>
-    Per i thread wasm usa dal root del repo: <code>python3 wasm-page/serve.py --port 8081</code>
-  </footer>
+    <aside>
+      <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Ready. Open a ROM or launch the UI.</span>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="log">Console</div>
+        <div class="tab"        data-tab="info">System</div>
+      </div>
+
+      <div class="tab-panel active" id="tabLog">
+        <div id="logPanel"><pre id="log"></pre></div>
+        <div class="log-toolbar">
+          <input id="logFilter" placeholder="Filter&hellip;" type="search" autocomplete="off" spellcheck="false">
+          <button id="clearLogBtn" title="Clear">&#128465;</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabInfo">
+        <div id="infoPanel">
+          <div class="info-group">
+            <h3>WebGL / GPU</h3>
+            <div class="info-row"><span class="info-key">Renderer</span>   <span class="info-val" id="iRenderer">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Vendor</span>     <span class="info-val" id="iVendor">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Version</span>    <span class="info-val" id="iVersion">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">GLSL</span>       <span class="info-val" id="iGlsl">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Max Texture</span><span class="info-val" id="iMaxTex">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Max Aniso</span>  <span class="info-val" id="iAniso">&#8212;</span></div>
+          </div>
+          <div class="info-group">
+            <h3>Extensions</h3>
+            <div class="info-row"><span class="info-key">WebGL2</span>             <span class="info-val" id="iWebgl2">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">stencil_texturing</span>  <span class="info-val" id="iStencil">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">multi_draw</span>         <span class="info-val" id="iMultiDraw">&#8212;</span></div>
+          </div>
+          <div class="info-group">
+            <h3>Environment</h3>
+            <div class="info-row"><span class="info-key">crossOriginIsolated</span><span class="info-val" id="iCOI">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">SharedArrayBuffer</span>  <span class="info-val" id="iSAB">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">HW Concurrency</span>     <span class="info-val" id="iHWC">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">SIMD128</span>            <span class="info-val" id="iSIMD">&#8212;</span></div>
+          </div>
+          <div class="info-group">
+            <h3>Audio</h3>
+            <div class="info-row"><span class="info-key">AudioContext</span> <span class="info-val" id="iACtx">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Sample Rate</span>  <span class="info-val" id="iASR">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">SDL Callbacks</span><span class="info-val" id="iACB">0</span></div>
+            <div class="info-row"><span class="info-key">Peak Level</span>   <span class="info-val" id="iAPeak">0</span></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
 
   <script>
-    const BUILD_DIR = "../build-wasm/";
-    const BUILD_STAMP = String(Date.now());
-    const ASSET_DIR = BUILD_DIR + "assets/";
-    const MANIFEST = "assets-manifest.txt";
-    const VIRTUAL_ASSETS = "/emsdk/upstream/emscripten/cache/sysroot/share/ppsspp/assets";
+    /* ── Constants ──────────────────────────────────────────────────── */
+    const BUILD_DIR        = "../build-wasm/";
+    const BUILD_STAMP      = String(Date.now());
+    const ASSET_DIR        = BUILD_DIR + "assets/";
+    const MANIFEST         = "assets-manifest.txt";
+    const VIRTUAL_ASSETS   = "/emsdk/upstream/emscripten/cache/sysroot/share/ppsspp/assets";
     const VIRTUAL_GAME_DIR = "/games";
 
-    const canvas = document.getElementById("canvas");
-    const fileInput = document.getElementById("gameFile");
-    const startBtn = document.getElementById("startBtn");
-    const audioBtn = document.getElementById("audioBtn");
-    const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const statusEl = document.getElementById("status");
-    const logEl = document.getElementById("log");
+    /* ── DOM refs ───────────────────────────────────────────────────── */
+    const canvas          = document.getElementById("canvas");
+    const fileInput       = document.getElementById("gameFile");
+    const fileLabel       = document.getElementById("fileLabel");
+    const startBtn        = document.getElementById("startBtn");
+    const fullscreenBtn   = document.getElementById("fullscreenBtn");
+    const statusEl        = document.getElementById("statusText");
+    const statusDot       = document.getElementById("statusDot");
+    const stageDotEl      = document.getElementById("stageDot");
+    const stageMiniTextEl = document.getElementById("stageMiniText");
+    const logEl           = document.getElementById("log");
+    const logFilter       = document.getElementById("logFilter");
+    const loadOverlay     = document.getElementById("loadOverlay");
+    const loadLabel       = document.getElementById("loadLabel");
+    const progressBar     = document.getElementById("progressBar");
+    const fpsBadge        = document.getElementById("fpsBadge");
+    const gpuBadge        = document.getElementById("gpuBadge");
+    const gamepadBadge    = document.getElementById("gamepadBadge");
+    const gpuSelectEl     = document.getElementById("gpuSelect");
+    const panelToggleBtn  = document.getElementById("panelToggleBtn");
 
+    // Panel toggle (hidden by default; restore from localStorage)
+    const PANEL_KEY = "ppsspp_panel_open";
+    if (localStorage.getItem(PANEL_KEY) === "1") document.body.classList.add("panel-open");
+    panelToggleBtn.addEventListener("click", () => {
+      const open = document.body.classList.toggle("panel-open");
+      localStorage.setItem(PANEL_KEY, open ? "1" : "0");
+    });
+
+    /* ── State ──────────────────────────────────────────────────────── */
     let selectedGame = null;
-    let started = false;
+    let started      = false;
     const trackedAudioContexts = [];
     const audioDebug = {
-      callbacks: 0,
-      nonsilent: 0,
-      peak: 0,
-      rate: 0,
-      deviceStarted: false,
-      pushes: 0,
-      pushNonsilent: 0,
-      pushPeak: 0,
-      workletPeak: 0,
-      workletTotal: 0,
-      ringDropped: 0,
-      fallbackPeak: 0,
-      fallbackDropped: 0,
+      callbacks: 0, nonsilent: 0, peak: 0, rate: 0, deviceStarted: false,
+      pushes: 0, pushNonsilent: 0, pushPeak: 0,
+      workletPeak: 0, workletTotal: 0, ringDropped: 0, fallbackPeak: 0, fallbackDropped: 0,
     };
-    // ── AudioWorklet output player ─────────────────────────────────────────────
-    // Receives audio from ppssppPushAudioSamples (called by SDL's C callback
-    // via EM_ASM).  The worklet reads from a SharedArrayBuffer ring-buffer so
-    // it is completely decoupled from any ScriptProcessorNode reliability issues.
+
+    /* ── AudioWorklet player ────────────────────────────────────────── */
     let audioWorkletPlayer     = null;
     let audioWorkletIniting    = false;
     let scriptFallbackPlayer   = null;
     let useScriptFallbackAudio = true;
-    let gameAudioGain = 3.0;
+    let gameAudioGain          = 3.0;
 
     const WORKLET_CODE = `
 class PPSSPPAudio extends AudioWorkletProcessor {
   constructor(o) {
     super(o);
     const s = o.processorOptions.sab;
-    this.wi    = new Int32Array(s, 0, 1);
-    this.ri    = new Int32Array(s, 4, 1);
-    this.cap   = o.processorOptions.cap;
-    this.data  = new Float32Array(s, 8, this.cap * 2);
-    this.tick  = 0;         // used for periodic status reports
-    this.total = 0;         // total frames consumed
+    this.wi   = new Int32Array(s, 0, 1);
+    this.ri   = new Int32Array(s, 4, 1);
+    this.cap  = o.processorOptions.cap;
+    this.data = new Float32Array(s, 8, this.cap * 2);
+    this.tick = 0; this.total = 0;
   }
   process(_, outputs) {
     const ch = outputs[0];
     if (!ch || !ch[0]) return true;
-    const n = ch[0].length;   // 128 frames per call
+    const n = ch[0].length;
     let r = Atomics.load(this.ri, 0);
     const w = Atomics.load(this.wi, 0);
     const avail = (w - r + this.cap) % this.cap;
@@ -269,21 +522,16 @@ class PPSSPPAudio extends AudioWorkletProcessor {
     let peak = 0;
     for (let i = 0; i < read; i++) {
       const idx = r * 2;
-      const l = this.data[idx];
-      const rr = this.data[idx + 1];
-      ch[0][i] = l;
-      if (ch[1]) ch[1][i] = rr;
+      const l = this.data[idx], rr = this.data[idx + 1];
+      ch[0][i] = l; if (ch[1]) ch[1][i] = rr;
       peak = Math.max(peak, Math.abs(l), Math.abs(rr));
       r = (r + 1) % this.cap;
     }
     for (let i = read; i < n; i++) { ch[0][i] = 0; if (ch[1]) ch[1][i] = 0; }
     Atomics.store(this.ri, 0, r);
-    this.total += read;
-    // Send a status ping to the main thread once per ~second (344 calls @ 128/44100)
-    this.tick++;
-    if (this.tick === 1 || this.tick % 344 === 0) {
-      this.port.postMessage({ type: 'status', tick: this.tick, avail, read, total: this.total, peak });
-    }
+    this.total += read; this.tick++;
+    if (this.tick === 1 || this.tick % 344 === 0)
+      this.port.postMessage({ type:'status', tick:this.tick, avail, read, total:this.total, peak });
     return true;
   }
 }
@@ -293,7 +541,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     async function initAudioWorkletPlayer(ctx) {
       if (audioWorkletPlayer || audioWorkletIniting || !ctx) return;
       if (!window.crossOriginIsolated) {
-        appendLog("AUDIO: SharedArrayBuffer non disponibile (crossOriginIsolated=false). Verifica gli header COOP/COEP del server.");
+        log("AUDIO: SharedArrayBuffer unavailable (crossOriginIsolated=false). Check COOP/COEP server headers.", "warn");
         return;
       }
       audioWorkletIniting = true;
@@ -308,40 +556,28 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
           numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
           processorOptions: { sab, cap },
         });
-        // Wire a GainNode so the worklet output passes through a JS-reachable node,
-        // preventing the AudioWorkletNode from being garbage-collected even if the
-        // spec says connected nodes are retained.
         const gain = ctx.createGain();
         gain.gain.value = 1.0;
-        if (!useScriptFallbackAudio) {
-          node.connect(gain);
-          gain.connect(ctx.destination);
-        }
-        // Listen for status pings from the worklet thread.
+        if (!useScriptFallbackAudio) { node.connect(gain); gain.connect(ctx.destination); }
         node.port.onmessage = (ev) => {
-          if (ev.data?.type === 'status') {
+          if (ev.data?.type === "status") {
             const d = ev.data;
-            audioDebug.workletPeak = d.peak || 0;
+            audioDebug.workletPeak  = d.peak  || 0;
             audioDebug.workletTotal = d.total || audioDebug.workletTotal;
-            if (d.tick <= 3 || d.tick % 344 === 0) {
-              appendLog(`Worklet tick=${d.tick}: avail=${d.avail} read=${d.read} peak=${(d.peak || 0).toFixed(4)} totalConsumed=${d.total}`);
-            }
+            if (d.tick <= 3 || d.tick % 344 === 0)
+              log(`Worklet tick=${d.tick}: avail=${d.avail} read=${d.read} peak=${(d.peak||0).toFixed(4)} consumed=${d.total}`);
           }
         };
-        node.onprocessorerror = (e) => {
-          appendLog("AUDIO: errore nel processore AudioWorklet: " + (e?.message || e));
-        };
+        node.onprocessorerror = (e) => log("AUDIO: AudioWorklet processor error: " + (e?.message || e), "err");
         audioWorkletPlayer = {
-          node, gain,  // strong refs – prevent GC
+          node, gain,
           wi: new Int32Array(sab, 0, 1), ri: new Int32Array(sab, 4, 1),
           data: new Float32Array(sab, 8, cap * 2), cap,
         };
-        appendLog(`AUDIO: AudioWorklet pronto (sampleRate=${ctx.sampleRate}, buffer=${cap} frames, gain→destination).`);
+        log("AUDIO: AudioWorklet ready (sampleRate=" + ctx.sampleRate + ", buffer=" + cap + " frames).", "ok");
       } catch (e) {
-        appendLog("AUDIO: AudioWorklet init fallito: " + (e?.message || e));
-      } finally {
-        audioWorkletIniting = false;
-      }
+        log("AUDIO: AudioWorklet init failed: " + (e?.message || e), "err");
+      } finally { audioWorkletIniting = false; }
     }
 
     function initScriptFallbackPlayer(ctx) {
@@ -351,40 +587,27 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
         const data = new Float32Array(cap * 2);
         const processor = ctx.createScriptProcessor(2048, 0, 2);
         const gain = ctx.createGain();
-        let r = 0;
-        let w = 0;
-        let total = 0;
-        let tick = 0;
+        let r = 0, w = 0, total = 0, tick = 0;
         processor.onaudioprocess = (event) => {
-          const left = event.outputBuffer.getChannelData(0);
+          const left  = event.outputBuffer.getChannelData(0);
           const right = event.outputBuffer.getChannelData(1);
           const n = left.length;
           const avail = (w - r + cap) % cap;
-          const read = Math.min(n, avail);
+          const read  = Math.min(n, avail);
           let peak = 0;
           for (let i = 0; i < read; i++) {
             const idx = r * 2;
-            const l = data[idx];
-            const rr = data[idx + 1];
-            left[i] = l;
-            right[i] = rr;
-            peak = Math.max(peak, Math.abs(l), Math.abs(rr));
+            left[i] = data[idx]; right[i] = data[idx + 1];
+            peak = Math.max(peak, Math.abs(data[idx]), Math.abs(data[idx + 1]));
             r = (r + 1) % cap;
           }
-          for (let i = read; i < n; i++) {
-            left[i] = 0;
-            right[i] = 0;
-          }
-          total += read;
-          audioDebug.fallbackPeak = peak;
-          tick++;
-          if (tick === 1 || tick % 22 === 0) {
-            appendLog(`Script fallback tick=${tick}: avail=${avail} read=${read} peak=${peak.toFixed(4)} totalConsumed=${total}`);
-          }
+          for (let i = read; i < n; i++) { left[i] = 0; right[i] = 0; }
+          total += read; audioDebug.fallbackPeak = peak; tick++;
+          if (tick === 1 || tick % 22 === 0)
+            log("ScriptProcessor tick=" + tick + ": avail=" + avail + " read=" + read + " peak=" + peak.toFixed(4) + " consumed=" + total);
         };
         gain.gain.value = gameAudioGain;
-        processor.connect(gain);
-        gain.connect(ctx.destination);
+        processor.connect(gain); gain.connect(ctx.destination);
         scriptFallbackPlayer = {
           data, cap, processor, gain,
           push(samples, frames) {
@@ -392,24 +615,21 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
             const used = (w - r + cap) % cap;
             const free = cap - 1 - used;
             if (push > free) {
-              const drop = push - free;
-              r = (r + drop) % cap;
+              const drop = push - free; r = (r + drop) % cap;
               audioDebug.fallbackDropped += drop;
             }
             for (let i = 0; i < push; i++) {
-              data[w * 2] = Math.max(-1, Math.min(1, samples[i * 2] || 0));
+              data[w * 2]     = Math.max(-1, Math.min(1, samples[i * 2]     || 0));
               data[w * 2 + 1] = Math.max(-1, Math.min(1, samples[i * 2 + 1] || 0));
               w = (w + 1) % cap;
             }
           }
         };
-        appendLog(`AUDIO: ScriptProcessor fallback pronto (buffer=${cap} frames, gain=${gameAudioGain}, processor→gain→destination).`);
-      } catch (e) {
-        appendLog("AUDIO: ScriptProcessor fallback init fallito: " + (e?.message || e));
-      }
+        log("AUDIO: ScriptProcessor fallback ready (buffer=" + cap + " frames, gain=" + gameAudioGain + ").", "ok");
+      } catch (e) { log("AUDIO: ScriptProcessor fallback init failed: " + (e?.message || e), "err"); }
     }
 
-    // Called from SDL's C audio callback via EM_ASM – must be fast, no DOM ops.
+    /* Called from SDL C callback via EM_ASM – must be fast */
     function pushGameAudioSamples(samples, frames) {
       scriptFallbackPlayer?.push(samples, frames);
       if (useScriptFallbackAudio) return;
@@ -421,11 +641,8 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       let free = p.cap - 1 - used;
       const push = Math.min(frames, p.cap - 1);
       if (push > free) {
-        const drop = push - free;
-        r = (r + drop) % p.cap;
-        Atomics.store(p.ri, 0, r);
-        audioDebug.ringDropped += drop;
-        free += drop;
+        const drop = push - free; r = (r + drop) % p.cap;
+        Atomics.store(p.ri, 0, r); audioDebug.ringDropped += drop; free += drop;
       }
       for (let i = 0; i < push; i++) {
         p.data[w * 2]     = Math.max(-1, Math.min(1, samples[i * 2]     || 0));
@@ -435,520 +652,536 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       Atomics.store(p.wi, 0, w);
     }
 
-    const MAX_LOG_LINES = 300;
-    let logLines = [];
-    let pendingLogLines = [];
-    let logRafId = 0;
+    /* ── Log system ─────────────────────────────────────────────────── */
+    const MAX_LOG_LINES = 500;
+    let logLines = [], pendingLines = [], logRafId = 0, filterText = "";
+
+    function classifyLine(text) {
+      const t = text.toLowerCase();
+      if (/error|abort|failed|fail|crash/.test(t)) return "err";
+      if (/warn/.test(t))                          return "warn";
+      if (/\b(ok|ready|loaded|initialized|done)\b/.test(t)) return "ok";
+      if (/audio|gpu|webgl|shader/.test(t))        return "info";
+      if (/stdout:|stderr:/.test(t))               return "dim";
+      return "";
+    }
+
+    function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+    function buildLineHtml(rawLine, forceLevel) {
+      const m   = rawLine.match(/^(\[\d{1,2}:\d{2}:\d{2}\]) (.*)$/s);
+      const ts  = m ? esc(m[1]) : "";
+      const txt = esc(m ? m[2] : rawLine);
+      const cls = forceLevel || classifyLine(rawLine);
+      const inner = cls
+        ? '<span class="l-ts">' + ts + '</span> <span class="l-' + cls + '">' + txt + '</span>'
+        : '<span class="l-ts">' + ts + '</span> ' + txt;
+      return { raw: rawLine, html: inner };
+    }
 
     function flushLog() {
       logRafId = 0;
-      if (!pendingLogLines.length) return;
-      logLines.push(...pendingLogLines);
-      pendingLogLines = [];
+      if (!pendingLines.length) return;
+      for (const e of pendingLines) logLines.push(e);
+      pendingLines = [];
       if (logLines.length > MAX_LOG_LINES) logLines.splice(0, logLines.length - MAX_LOG_LINES);
-      logEl.textContent = logLines.join("\n") + "\n";
+      renderLog();
+    }
+
+    function renderLog() {
+      const ft = filterText.toLowerCase();
+      const vis = ft ? logLines.filter(e => e.raw.toLowerCase().includes(ft)) : logLines;
+      logEl.innerHTML = vis.map(e => e.html).join("\n") + "\n";
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    function appendLog(text) {
-      const line = `[${new Date().toLocaleTimeString()}] ${text}`;
-      pendingLogLines.push(line);
-      console.log(line);
+    logFilter.addEventListener("input", () => { filterText = logFilter.value.trim(); renderLog(); });
+    document.getElementById("clearLogBtn").addEventListener("click", () => { logLines = []; pendingLines = []; logEl.innerHTML = ""; });
+
+    function log(text, level) {
+      const ts  = new Date().toLocaleTimeString("en-GB", { hour12: false });
+      const raw = "[" + ts + "] " + text;
+      pendingLines.push(buildLineHtml(raw, level || ""));
+      console.log(raw);
       updateAudioDebugFromLog(text);
       if (!logRafId) logRafId = requestAnimationFrame(flushLog);
     }
 
-    function setStatus(text, isError = false) {
+    /* ── Status ─────────────────────────────────────────────────────── */
+    function setStatus(text, kind) {
       statusEl.textContent = text;
-      statusEl.classList.toggle("error", isError);
-      appendLog((isError ? "STATUS ERROR: " : "STATUS: ") + text);
+      statusDot.className  = "status-dot" + (kind ? " " + kind : "");
+      // also update the always-visible stage overlay
+      if (stageMiniTextEl) stageMiniTextEl.textContent = text;
+      if (stageDotEl) stageDotEl.className = "stage-dot" + (kind ? " " + kind : "");
+      log((kind === "err" ? "ERROR: " : "") + text, kind === "err" ? "err" : undefined);
     }
 
+    function showLoading(label, progress) {
+      loadOverlay.classList.add("visible");
+      loadLabel.textContent = label;
+      progressBar.style.width = (progress != null && progress >= 0) ? (progress * 100).toFixed(1) + "%" : "0%";
+    }
+    function hideLoading() { loadOverlay.classList.remove("visible"); progressBar.style.width = "0%"; }
+
+    /* ── System info panel ──────────────────────────────────────────── */
+    function setInfoVal(id, val, cls) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent  = val;
+      el.className    = "info-val" + (cls ? " " + cls : "");
+    }
+
+    function updateInfoPanel() {
+      const sdlCtx = window.Module?.SDL2?.audioContext || trackedAudioContexts[trackedAudioContexts.length - 1];
+      setInfoVal("iACtx",  sdlCtx ? sdlCtx.state : "none", sdlCtx?.state === "running" ? "good" : "warn");
+      setInfoVal("iASR",   sdlCtx ? sdlCtx.sampleRate + " Hz" : "\u2014");
+      setInfoVal("iACB",   String(audioDebug.callbacks));
+      setInfoVal("iAPeak", audioDebug.peak ? String(audioDebug.peak) : "0");
+      setInfoVal("iCOI",   String(window.crossOriginIsolated), window.crossOriginIsolated ? "good" : "bad");
+      setInfoVal("iSAB",   typeof SharedArrayBuffer !== "undefined" ? "yes" : "no",
+                           typeof SharedArrayBuffer !== "undefined" ? "good" : "bad");
+      setInfoVal("iHWC",   String(navigator.hardwareConcurrency || "?"));
+    }
+
+    /* ── Audio helpers ──────────────────────────────────────────────── */
     function updateAudioDebugFromLog(text) {
-      if (text.includes("SDL audio device started")) {
-        audioDebug.deviceStarted = true;
-      }
-
-      const match = text.match(/WASM audio callback count=(\d+) nonsilent=(\d+) frames=(\d+) peak=(\d+) rate=(\d+)/);
-      if (match) {
-        audioDebug.callbacks = Number(match[1]);
-        audioDebug.nonsilent = Number(match[2]);
-        audioDebug.peak = Number(match[4]);
-        audioDebug.rate = Number(match[5]);
-      }
-
-      const pushMatch = text.match(/WASM audio push count=(\d+) nonsilent=(\d+) frames=(\d+) peak=(\d+)/);
-      if (pushMatch) {
-        audioDebug.pushes = Number(pushMatch[1]);
-        audioDebug.pushNonsilent = Number(pushMatch[2]);
-        audioDebug.pushPeak = Number(pushMatch[4]);
-        audioDebug.peak = Math.max(audioDebug.peak, Number(pushMatch[4]));
-      }
-
-      const processMatch = text.match(/ScriptProcessor onaudioprocess fires: count=(\d+), queued=(\d+)/);
-      if (processMatch) {
-        audioDebug.processorFires = Number(processMatch[1]);
-      }
+      if (text.includes("SDL audio device started")) audioDebug.deviceStarted = true;
+      const m  = text.match(/WASM audio callback count=(\d+) nonsilent=(\d+) frames=(\d+) peak=(\d+) rate=(\d+)/);
+      if (m) { audioDebug.callbacks = +m[1]; audioDebug.nonsilent = +m[2]; audioDebug.peak = +m[4]; audioDebug.rate = +m[5]; }
+      const m2 = text.match(/WASM audio push count=(\d+) nonsilent=(\d+) frames=(\d+) peak=(\d+)/);
+      if (m2) { audioDebug.pushes = +m2[1]; audioDebug.pushNonsilent = +m2[2]; audioDebug.pushPeak = +m2[4]; audioDebug.peak = Math.max(audioDebug.peak, +m2[4]); }
     }
 
-    async function reportGameAudioStatus() {
-      if (!started) {
-        return;
-      }
-
-      // Aggressively try to resume any suspended AudioContext.
+    async function reportAudioStatus() {
+      if (!started) return;
       const SDL2 = window.Module?.SDL2 || window.SDL2;
-      const allContexts = [...trackedAudioContexts];
-      if (SDL2?.audioContext && !allContexts.includes(SDL2.audioContext)) {
-        allContexts.push(SDL2.audioContext);
-      }
-      for (const ctx of allContexts) {
-        if (ctx && ctx.state === "suspended") {
-          try { await ctx.resume(); appendLog(`AudioContext auto-resumed: state=${ctx.state}`); } catch(e) {}
-        }
-      }
-
+      const all  = [...trackedAudioContexts];
+      if (SDL2?.audioContext && !all.includes(SDL2.audioContext)) all.push(SDL2.audioContext);
+      for (const ctx of all)
+        if (ctx?.state === "suspended") try { await ctx.resume(); log("AudioContext auto-resumed: state=" + ctx.state); } catch(e) {}
       const sdlCtx = window.Module?.SDL2?.audioContext;
-      const ctxState = sdlCtx ? sdlCtx.state : "nessuno";
-      if (audioDebug.callbacks === 0) {
-        appendLog(`AUDIO STATUS: SDL callbacks=0, player=SDL, ctx=${ctxState}. Aspetta avvio gioco o clicca Audio.`);
-      } else {
-        appendLog(`AUDIO STATUS: callbacks=${audioDebug.callbacks} (nonsilent=${audioDebug.nonsilent}), peak=${audioDebug.peak}, player=SDL, ctx=${ctxState}.`);
-      }
+      const state  = sdlCtx ? sdlCtx.state : "none";
+      if (audioDebug.callbacks === 0)
+        log("AUDIO: SDL callbacks=0, ctx=" + state + ". Waiting for game start or click Audio.");
+      else
+        log("AUDIO: callbacks=" + audioDebug.callbacks + " (nonsilent=" + audioDebug.nonsilent + "), peak=" + audioDebug.peak + ", ctx=" + state + ".");
+      updateInfoPanel();
     }
 
     function installAudioContextTracking() {
       for (const name of ["AudioContext", "webkitAudioContext"]) {
-        const OriginalAudioContext = window[name];
-        if (!OriginalAudioContext || OriginalAudioContext.__ppssppTracked) {
-          continue;
+        const Orig = window[name];
+        if (!Orig || Orig.__ppssppTracked) continue;
+        function Tracked(...args) {
+          const ctx = new Orig(...args);
+          trackedAudioContexts.push(ctx);
+          log(name + " created: state=" + ctx.state + ", sampleRate=" + ctx.sampleRate);
+          ctx.addEventListener?.("statechange", () => log(name + " state -> " + ctx.state));
+          return ctx;
         }
-
-        function TrackedAudioContext(...args) {
-          const context = new OriginalAudioContext(...args);
-          trackedAudioContexts.push(context);
-          appendLog(`${name} creato: state=${context.state}, sampleRate=${context.sampleRate}`);
-          context.addEventListener?.("statechange", () => {
-            appendLog(`${name} state=${context.state}`);
-          });
-          return context;
-        }
-
-        TrackedAudioContext.prototype = OriginalAudioContext.prototype;
-        Object.setPrototypeOf(TrackedAudioContext, OriginalAudioContext);
-        TrackedAudioContext.__ppssppTracked = true;
-        window[name] = TrackedAudioContext;
+        Tracked.prototype = Orig.prototype;
+        Object.setPrototypeOf(Tracked, Orig);
+        Tracked.__ppssppTracked = true;
+        window[name] = Tracked;
       }
     }
 
     function describeAudio() {
       const SDL2 = window.Module?.SDL2 || window.SDL2;
-      const context = SDL2?.audioContext || trackedAudioContexts[trackedAudioContexts.length - 1];
-      if (!context) {
-        appendLog("Audio status: nessun AudioContext creato.");
-        return;
-      }
-      appendLog(`Audio status: state=${context.state}, sampleRate=${context.sampleRate}, contexts=${trackedAudioContexts.length}`);
+      const ctx  = SDL2?.audioContext || trackedAudioContexts[trackedAudioContexts.length - 1];
+      if (!ctx) { log("Audio: no AudioContext created."); return; }
+      log("Audio: state=" + ctx.state + ", sampleRate=" + ctx.sampleRate + ", contexts=" + trackedAudioContexts.length);
     }
 
     async function createOrResumeAudioContext() {
       try {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContextClass) {
-          appendLog("WebAudio non disponibile in questo browser.");
-          return null;
-        }
-
-        let context = window.Module?.SDL2?.audioContext || trackedAudioContexts[trackedAudioContexts.length - 1];
-        if (!context || context.state === "closed") {
-          context = new AudioContextClass();
-        }
-        if (context.state === "suspended") {
-          await context.resume();
-        }
-        appendLog(`AudioContext pronto: state=${context.state}, sampleRate=${context.sampleRate}`);
-        return context;
-      } catch (error) {
-        appendLog("Creazione AudioContext fallita: " + (error?.message || error));
-        return null;
-      }
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) { log("WebAudio not available in this browser.", "warn"); return null; }
+        let ctx = window.Module?.SDL2?.audioContext || trackedAudioContexts[trackedAudioContexts.length - 1];
+        if (!ctx || ctx.state === "closed") ctx = new AC();
+        if (ctx.state === "suspended") await ctx.resume();
+        log("AudioContext ready: state=" + ctx.state + ", sampleRate=" + ctx.sampleRate, "ok");
+        return ctx;
+      } catch(e) { log("AudioContext creation failed: " + (e?.message || e), "err"); return null; }
     }
 
     async function unlockAudio() {
       const sdlCtx = window.Module?.SDL2?.audioContext;
-      const all = sdlCtx ? [sdlCtx] : [...trackedAudioContexts];
-      for (const ctx of all) {
-        if (ctx?.state === "suspended") {
-          try { await ctx.resume(); } catch(e) {}
-        }
-      }
+      const all    = sdlCtx ? [sdlCtx] : [...trackedAudioContexts];
+      for (const ctx of all) if (ctx?.state === "suspended") try { await ctx.resume(); } catch(e) {}
     }
 
-    async function playAudioTestTone() {
-      const context = await createOrResumeAudioContext();
-      if (!context) {
-        return;
-      }
-
-      playWebAudioTone(context);
-    }
-
-    function playWebAudioTone(context) {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = "square";
-      oscillator.frequency.value = 880;
-      gain.gain.setValueAtTime(0.2, context.currentTime);
-      gain.gain.setValueAtTime(0.2, context.currentTime + 0.45);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.5);
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.5);
-      appendLog(`Beep WebAudio inviato: state=${context.state}, currentTime=${context.currentTime.toFixed(3)}`);
+    function playWebAudioTone(ctx) {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = "square"; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime + 0.45);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.5);
+      log("WebAudio beep sent: state=" + ctx.state + ", t=" + ctx.currentTime.toFixed(3));
     }
 
     function playHtmlAudioTone() {
-      const sampleRate = 44100;
-      const duration = 0.5;
-      const sampleCount = Math.floor(sampleRate * duration);
-      const dataBytes = sampleCount * 2;
-      const buffer = new ArrayBuffer(44 + dataBytes);
-      const view = new DataView(buffer);
-
-      function writeString(offset, text) {
-        for (let i = 0; i < text.length; i++) {
-          view.setUint8(offset + i, text.charCodeAt(i));
-        }
+      const sr = 44100, dur = 0.5, n = Math.floor(sr * dur);
+      const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+      const ws  = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+      ws(0,"RIFF"); v.setUint32(4,36+n*2,true); ws(8,"WAVE"); ws(12,"fmt ");
+      v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+      v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+      v.setUint16(32,2,true);  v.setUint16(34,16,true);
+      ws(36,"data"); v.setUint32(40,n*2,true);
+      for (let i = 0; i < n; i++) {
+        const env  = Math.min(1,i/600)*Math.min(1,(n-i)/1200);
+        v.setInt16(44+i*2, Math.round(Math.sin(2*Math.PI*660*i/sr)*0.35*env*32767), true);
       }
-
-      writeString(0, "RIFF");
-      view.setUint32(4, 36 + dataBytes, true);
-      writeString(8, "WAVE");
-      writeString(12, "fmt ");
-      view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true);
-      view.setUint16(22, 1, true);
-      view.setUint32(24, sampleRate, true);
-      view.setUint32(28, sampleRate * 2, true);
-      view.setUint16(32, 2, true);
-      view.setUint16(34, 16, true);
-      writeString(36, "data");
-      view.setUint32(40, dataBytes, true);
-
-      for (let i = 0; i < sampleCount; i++) {
-        const envelope = Math.min(1, i / 600) * Math.min(1, (sampleCount - i) / 1200);
-        const sample = Math.sin(2 * Math.PI * 660 * i / sampleRate) * 0.35 * envelope;
-        view.setInt16(44 + i * 2, Math.round(sample * 32767), true);
-      }
-
-      const blob = new Blob([buffer], { type: "audio/wav" });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.volume = 1.0;
-      audio.addEventListener("ended", () => URL.revokeObjectURL(url), { once: true });
-      audio.play()
-        .then(() => appendLog("Beep HTMLAudio inviato."))
-        .catch((error) => appendLog("Beep HTMLAudio bloccato: " + (error?.message || error)));
+      const url = URL.createObjectURL(new Blob([buf],{type:"audio/wav"}));
+      const a   = new Audio(url);
+      a.volume  = 1.0;
+      a.addEventListener("ended", () => URL.revokeObjectURL(url), {once:true});
+      a.play().then(()=>log("HTML Audio beep sent.")).catch(e=>log("HTML Audio beep blocked: "+(e?.message||e),"warn"));
     }
 
     installAudioContextTracking();
 
-    // ── Gamepad / PS4 controller support ─────────────────────────────────────
-    const gamepadStatusEl = document.getElementById("gamepadStatus");
-    const connectedGamepads = new Map(); // index -> gamepad info
+    /* ── Gamepad ────────────────────────────────────────────────────── */
+    const connectedGamepads = new Map();
 
-    function updateGamepadStatusBadge() {
-      const count = connectedGamepads.size;
-      if (count === 0) {
-        gamepadStatusEl.textContent = "🎮 Nessun controller";
-        gamepadStatusEl.classList.remove("gamepad-connected");
-      } else {
-        const names = [...connectedGamepads.values()].map(g => g.id.slice(0, 24)).join(", ");
-        gamepadStatusEl.textContent = `🎮 ${count}: ${names}`;
-        gamepadStatusEl.classList.add("gamepad-connected");
+    function updateGamepadBadge() {
+      const n = connectedGamepads.size;
+      if (n === 0) { gamepadBadge.textContent = "\uD83C\uDFAE No controller"; gamepadBadge.className = "badge"; }
+      else {
+        const names = [...connectedGamepads.values()].map(g => g.id.slice(0,22)).join(", ");
+        gamepadBadge.textContent = "\uD83C\uDFAE " + n + ": " + names;
+        gamepadBadge.className   = "badge active";
       }
+    }
+
+    function flashGamepadBadge() {
+      gamepadBadge.style.transition = "none";
+      gamepadBadge.style.outline    = "2px solid var(--accent)";
+      setTimeout(() => { gamepadBadge.style.transition = ""; gamepadBadge.style.outline = ""; }, 800);
     }
 
     function onGamepadConnected(e) {
       const gp = e.gamepad;
       connectedGamepads.set(gp.index, { id: gp.id, index: gp.index });
-      appendLog(`GAMEPAD connesso: [${gp.index}] "${gp.id}" – axes=${gp.axes.length} buttons=${gp.buttons.length} mapping="${gp.mapping}"`);
-      updateGamepadStatusBadge();
-      // Ensure canvas is focused so PPSSPP receives all input
+      log('GAMEPAD connected: [' + gp.index + '] "' + gp.id + '" axes=' + gp.axes.length + ' buttons=' + gp.buttons.length + ' mapping="' + gp.mapping + '"', "ok");
+      updateGamepadBadge();
+      flashGamepadBadge();
+      // Keep canvas focused so SDL receives gamepad events
       canvas.focus();
     }
-
     function onGamepadDisconnected(e) {
-      const gp = e.gamepad;
-      connectedGamepads.delete(gp.index);
-      appendLog(`GAMEPAD disconnesso: [${gp.index}] "${gp.id}"`);
-      updateGamepadStatusBadge();
+      const gp = e.gamepad; connectedGamepads.delete(gp.index);
+      log('GAMEPAD disconnected: [' + gp.index + '] "' + gp.id + '"');
+      updateGamepadBadge();
     }
-
-    window.addEventListener("gamepadconnected", onGamepadConnected);
+    window.addEventListener("gamepadconnected",    onGamepadConnected);
     window.addEventListener("gamepaddisconnected", onGamepadDisconnected);
 
-    // Probe gamepads already connected (some browsers don't re-fire the event)
     function probeExistingGamepads() {
       if (!navigator.getGamepads) return;
-      const pads = navigator.getGamepads();
-      for (const gp of pads) {
+      for (const gp of navigator.getGamepads()) {
         if (gp && !connectedGamepads.has(gp.index)) {
           connectedGamepads.set(gp.index, { id: gp.id, index: gp.index });
-          appendLog(`GAMEPAD già presente: [${gp.index}] "${gp.id}" – axes=${gp.axes.length} buttons=${gp.buttons.length}`);
+          log('GAMEPAD present: [' + gp.index + '] "' + gp.id + '" axes=' + gp.axes.length + ' buttons=' + gp.buttons.length);
         }
       }
-      updateGamepadStatusBadge();
+      updateGamepadBadge();
     }
 
     function showGamepadDiag() {
-      if (!navigator.getGamepads) {
-        appendLog("GAMEPAD: API navigator.getGamepads non disponibile in questo browser.");
-        return;
-      }
-      const pads = navigator.getGamepads();
+      if (!navigator.getGamepads) { log("GAMEPAD: navigator.getGamepads API unavailable.", "warn"); return; }
       let found = 0;
-      for (const gp of pads) {
-        if (!gp) continue;
-        found++;
-        const axes = Array.from(gp.axes).map(v => v.toFixed(2)).join(", ");
-        const btns = Array.from(gp.buttons)
-          .map((b, i) => b.pressed ? `B${i}(${b.value.toFixed(2)})` : null)
-          .filter(Boolean).join(", ") || "nessuno";
-        appendLog(`GAMEPAD[${gp.index}] "${gp.id.slice(0, 60)}" mapping=${gp.mapping}`);
-        appendLog(`  axes=[${axes}]`);
-        appendLog(`  pressed=[${btns}]`);
+      for (const gp of navigator.getGamepads()) {
+        if (!gp) continue; found++;
+        const axes = Array.from(gp.axes).map(v=>v.toFixed(2)).join(", ");
+        const btns = Array.from(gp.buttons).map((b,i)=>b.pressed?"B"+i+"("+b.value.toFixed(2)+")":null).filter(Boolean).join(", ")||"none";
+        log('GAMEPAD[' + gp.index + '] "' + gp.id.slice(0,60) + '" mapping=' + gp.mapping);
+        log("  axes=[" + axes + "]");
+        log("  pressed=[" + btns + "]");
       }
-      if (!found) appendLog("GAMEPAD: nessun controller rilevato. Premi un pulsante sul controller PS4 prima.");
+      if (!found) log("GAMEPAD: no controller detected — press a button on your controller first.", "warn");
     }
 
     document.getElementById("gamepadBtn").addEventListener("click", () => {
       probeExistingGamepads();
       showGamepadDiag();
+      // Always re-focus the canvas so SDL picks up the gamepad
       canvas.focus();
+      if (connectedGamepads.size > 0) flashGamepadBadge();
     });
 
-    appendLog("Pagina caricata. crossOriginIsolated=" + window.crossOriginIsolated);
-    appendLog("Build stamp: " + BUILD_STAMP);
-
-    function probeWebGLFeatures() {
-      const probeCanvas = document.createElement("canvas");
-      const gl = probeCanvas.getContext("webgl2");
+    /* ── GPU probe ──────────────────────────────────────────────────── */
+    function probeWebGLFeaturesWithPref(powerPreference) {
+      const pc = document.createElement("canvas");
+      const gl = pc.getContext("webgl2", { powerPreference, alpha: false, antialias: false, depth: true, stencil: true, preserveDrawingBuffer: false });
+      setInfoVal("iWebgl2", gl ? "yes" : "no", gl ? "good" : "bad");
       if (!gl) {
-        appendLog("WebGL2 non disponibile: il rendering GLES3/WebGL2 non puo' partire correttamente.");
-        return;
+        log("WebGL2 unavailable — GLES3/WebGL2 rendering cannot start.", "err");
+        gpuBadge.textContent = "\uD83D\uDDA5 No WebGL2"; gpuBadge.className = "badge error"; return;
       }
-      const stencilTexturing = !!gl.getExtension("WEBGL_stencil_texturing");
-      appendLog("WebGL2 disponibile. WEBGL_stencil_texturing=" + stencilTexturing);
-      if (!stencilTexturing) {
-        appendLog("ATTENZIONE: senza WEBGL_stencil_texturing alcuni giochi possono mostrare scene nere o effetti mancanti.");
-      }
+      const dbg      = gl.getExtension("WEBGL_debug_renderer_info");
+      const renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      const vendor   = dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)   : gl.getParameter(gl.VENDOR);
+      const version  = gl.getParameter(gl.VERSION);
+      const glslVer  = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
+      const maxTex   = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+      const anisoExt = gl.getExtension("EXT_texture_filter_anisotropic");
+      const maxAniso = anisoExt ? gl.getParameter(anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 1;
+      const hasStencil   = !!gl.getExtension("WEBGL_stencil_texturing");
+      const hasMultiDraw = !!gl.getExtension("WEBGL_multi_draw");
+      let simd = false;
+      try { simd = WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])); } catch(e) {}
+
+      log("GPU: " + renderer);
+      log("GPU vendor: " + vendor);
+      log("WebGL: " + version);
+      log("GLSL: " + glslVer);
+      log("MaxTexture: " + maxTex + " | MaxAnisotropy: " + maxAniso);
+      log("stencil_texturing: " + hasStencil + " | multi_draw: " + hasMultiDraw, hasStencil ? undefined : "warn");
+      if (!hasStencil) log("WARNING: without WEBGL_stencil_texturing some games may show black scenes.", "warn");
+
+      setInfoVal("iRenderer", renderer);
+      setInfoVal("iVendor",   vendor);
+      setInfoVal("iVersion",  version);
+      setInfoVal("iGlsl",     glslVer);
+      setInfoVal("iMaxTex",   String(maxTex));
+      setInfoVal("iAniso",    String(maxAniso));
+      setInfoVal("iStencil",  hasStencil   ? "yes" : "no", hasStencil   ? "good" : "warn");
+      setInfoVal("iMultiDraw",hasMultiDraw ? "yes" : "no", hasMultiDraw ? "good" : "");
+      setInfoVal("iSIMD",     simd         ? "yes" : "no", simd         ? "good" : "warn");
+      setInfoVal("iHWC",      String(navigator.hardwareConcurrency || "?"));
+      setInfoVal("iCOI",      String(window.crossOriginIsolated), window.crossOriginIsolated ? "good" : "bad");
+      setInfoVal("iSAB",      typeof SharedArrayBuffer !== "undefined" ? "yes" : "no",
+                              typeof SharedArrayBuffer !== "undefined" ? "good" : "bad");
+
+      const short = renderer.replace(/\(.*?\)/g,"").trim().slice(0,32);
+      gpuBadge.textContent = "\uD83D\uDDA5 " + short;
+      gpuBadge.className   = "badge active";
+      gpuBadge.title       = "[" + powerPreference + "]\n" + renderer + "\n" + vendor + "\n" + version + "\nGLSL: " + glslVer + "\nMaxTex: " + maxTex + "  MaxAniso: " + maxAniso + "\nstencil_texturing: " + hasStencil + "  multi_draw: " + hasMultiDraw;
     }
 
-    probeWebGLFeatures();
+    function probeWebGLFeatures() { probeWebGLFeaturesWithPref(gpuSelectEl?.value || "high-performance"); }
 
-    window.addEventListener("error", (event) => {
-      appendLog("JS ERROR: " + (event.message || event.error || "errore sconosciuto"));
+    gpuSelectEl.addEventListener("change", () => {
+      log('GPU selector changed to "' + gpuSelectEl.value + '" — re-probing WebGL...');
+      probeWebGLFeaturesWithPref(gpuSelectEl.value);
     });
 
-    window.addEventListener("unhandledrejection", (event) => {
-      appendLog("JS PROMISE ERROR: " + (event.reason?.stack || event.reason || "errore sconosciuto"));
-    });
+    /* ── Error handlers ─────────────────────────────────────────────── */
+    window.addEventListener("error",             (e) => log("JS ERROR: " + (e.message || e.error || "unknown"), "err"));
+    window.addEventListener("unhandledrejection",(e) => log("PROMISE ERROR: " + (e.reason?.stack || e.reason || "unknown"), "err"));
 
-    function dirname(path) {
-      const slash = path.lastIndexOf("/");
-      return slash === -1 ? "" : path.slice(0, slash);
-    }
+    /* ── Asset / game loading ───────────────────────────────────────── */
+    function dirname(p) { const s = p.lastIndexOf("/"); return s === -1 ? "" : p.slice(0, s); }
 
     async function preloadAssets(FS) {
-      appendLog("Carico manifest asset: " + MANIFEST);
-      const manifestResponse = await fetch(MANIFEST, { cache: "no-store" });
-      if (!manifestResponse.ok) {
-        throw new Error("Manifest asset non trovato: " + manifestResponse.status);
-      }
-
-      const files = (await manifestResponse.text())
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean);
-
+      log("Fetching asset manifest: " + MANIFEST);
+      const r = await fetch(MANIFEST, { cache: "no-store" });
+      if (!r.ok) throw new Error("Asset manifest not found: " + r.status);
+      const files = (await r.text()).split("\n").map(l=>l.trim()).filter(Boolean);
       FS.mkdirTree(VIRTUAL_ASSETS);
-      appendLog("Asset nel manifest: " + files.length);
-      let nextIndex = 0;
-      const workerCount = Math.min(8, Math.max(2, navigator.hardwareConcurrency || 4), files.length);
-      async function loadNextAsset() {
-        while (nextIndex < files.length) {
-          const i = nextIndex++;
-          const rel = files[i];
+      log("Assets in manifest: " + files.length);
+      let idx = 0;
+      const workers = Math.min(8, Math.max(2, navigator.hardwareConcurrency || 4), files.length);
+      async function loadNext() {
+        while (idx < files.length) {
+          const i = idx++, rel = files[i];
           const target = VIRTUAL_ASSETS + "/" + rel;
-          const dir = dirname(target);
-          if (dir) {
-            FS.mkdirTree(dir);
-          }
-
-          setStatus(`Caricamento asset ${i + 1}/${files.length}: ${rel}`);
-          const response = await fetch(ASSET_DIR + rel);
-          if (!response.ok) {
-            throw new Error(`Asset non trovato: ${rel} (${response.status})`);
-          }
-          FS.writeFile(target, new Uint8Array(await response.arrayBuffer()));
+          const dir = dirname(target); if (dir) FS.mkdirTree(dir);
+          setStatus("Loading asset " + (i+1) + "/" + files.length + ": " + rel, "run");
+          showLoading("Loading assets\u2026 " + (i+1) + " / " + files.length, (i+1) / files.length);
+          const res = await fetch(ASSET_DIR + rel);
+          if (!res.ok) throw new Error("Asset not found: " + rel + " (" + res.status + ")");
+          FS.writeFile(target, new Uint8Array(await res.arrayBuffer()));
         }
       }
-      await Promise.all(Array.from({ length: workerCount }, loadNextAsset));
-      const fontAtlasPath = VIRTUAL_ASSETS + "/font_atlas.meta";
-      if (!FS.analyzePath(fontAtlasPath).exists) {
-        throw new Error("Asset critico mancante: " + fontAtlasPath);
-      }
-      appendLog("Asset caricati in MEMFS.");
+      await Promise.all(Array.from({ length: workers }, loadNext));
+      if (!FS.analyzePath(VIRTUAL_ASSETS + "/font_atlas.meta").exists)
+        throw new Error("Critical asset missing: font_atlas.meta");
+      log("All assets loaded into MEMFS.", "ok");
     }
 
     async function preloadGame(FS) {
-      if (!selectedGame) {
-        return null;
-      }
-
+      if (!selectedGame) return null;
       FS.mkdirTree(VIRTUAL_GAME_DIR);
-      const safeName = selectedGame.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const gamePath = VIRTUAL_GAME_DIR + "/" + safeName;
-      setStatus("Caricamento gioco in memoria: " + selectedGame.name);
-      FS.writeFile(gamePath, new Uint8Array(await selectedGame.arrayBuffer()));
-      appendLog("Gioco montato in MEMFS: " + gamePath);
-      return gamePath;
+      const safe = selectedGame.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = VIRTUAL_GAME_DIR + "/" + safe;
+      setStatus("Loading ROM into memory: " + selectedGame.name, "run");
+      showLoading("Loading ROM: " + selectedGame.name);
+      FS.writeFile(path, new Uint8Array(await selectedGame.arrayBuffer()));
+      log("ROM mounted in MEMFS: " + path, "ok");
+      return path;
     }
 
-    async function start() {
-      if (started) {
-        return;
-      }
-      started = true;
-      appendLog("Start premuto.");
-      startBtn.disabled = true;
-      fileInput.disabled = true;
-      canvas.focus();
+    /* ── Tabs ───────────────────────────────────────────────────────── */
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+        tab.classList.add("active");
+        const id = "tab" + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
+        document.getElementById(id).classList.add("active");
+      });
+    });
 
-      // Pre-create and unlock the AudioContext before loading SDL so its audio
-      // device can attach to a user-gesture-unlocked context.
+    /* ── FPS counter ────────────────────────────────────────────────── */
+    let fpsFrames = 0, fpsLast = performance.now();
+    (function tickFps() {
+      fpsFrames++;
+      const now = performance.now();
+      if (now - fpsLast >= 1000) {
+        const fps = Math.round(fpsFrames * 1000 / (now - fpsLast));
+        fpsFrames = 0; fpsLast = now;
+        if (started) { fpsBadge.style.display = "block"; fpsBadge.textContent = fps + " FPS"; }
+      }
+      requestAnimationFrame(tickFps);
+    })();
+
+    /* ── Launch ─────────────────────────────────────────────────────── */
+    async function start() {
+      if (started) return;
+      started = true;
+      log("Launch button clicked.", "info");
+      startBtn.disabled = true;
+      fileLabel.classList.add("disabled"); fileInput.disabled = true;
+      gpuSelectEl.disabled = true;
+      canvas.focus();
+      showLoading("Initializing audio\u2026");
+
       let preAudioCtx = null;
       try {
         preAudioCtx = new AudioContext({ sampleRate: 44100 });
         await preAudioCtx.resume();
-        appendLog(`AUDIO: AudioContext pre-inizializzato per SDL (state=${preAudioCtx.state}, sampleRate=${preAudioCtx.sampleRate}).`);
-      } catch (e) {
-        appendLog("AUDIO: pre-init AudioContext fallito: " + (e?.message || e));
-      }
+        log("AUDIO: AudioContext pre-initialized for SDL (state=" + preAudioCtx.state + ", sr=" + preAudioCtx.sampleRate + ").", "ok");
+      } catch(e) { log("AUDIO: pre-init AudioContext failed: " + (e?.message || e), "warn"); }
 
       let gameArg = null;
+      const chosenPowerPref = gpuSelectEl.value;
+      log('GPU powerPreference: "' + chosenPowerPref + '"', "info");
 
       window.Module = {
         canvas,
-        SDL2: preAudioCtx ? { audioContext: preAudioCtx } : {},  // SDL riusa il context già pronto
+        webglContextAttributes: {
+          powerPreference: chosenPowerPref,
+          alpha: false, antialias: false, depth: true, stencil: true,
+          preserveDrawingBuffer: false, desynchronized: true,
+          failIfMajorPerformanceCaveat: false,
+        },
+        SDL2: preAudioCtx ? { audioContext: preAudioCtx } : {},
         arguments: [],
         locateFile(path) {
           let url = BUILD_DIR + path;
-          if (path.endsWith(".wasm") || path.endsWith(".worker.js")) {
-            url += "?v=" + BUILD_STAMP;
-          }
-          appendLog("locateFile: " + path + " -> " + url);
+          if (path.endsWith(".wasm") || path.endsWith(".worker.js")) url += "?v=" + BUILD_STAMP;
+          log("locateFile: " + path + " -> " + url);
           return url;
         },
-        print(text) {
-          appendLog("stdout: " + text);
-        },
+        print(text)    { log("stdout: " + text); },
         printErr(text) {
-          // Parse audio debug counters but suppress the noisy per-120-call logs
-          // from the panel – they cause visible lag.  Show only errors and
-          // the first 5 audio lines.
           updateAudioDebugFromLog(text);
-          const isAudioNoise = /WASM audio (push|callback) count=/.test(text);
-          if (!isAudioNoise) {
-            appendLog("stderr: " + text);
-          }
+          if (!/WASM audio (push|callback) count=/.test(text)) log("stderr: " + text);
         },
-        setStatus(text) {
-          if (text) {
-            setStatus(text);
-          }
-        },
+        setStatus(text) { if (text) setStatus(text, "run"); },
         monitorRunDependencies(left) {
-          appendLog("Run dependencies rimaste: " + left);
-          if (left > 0) {
-            setStatus(`Inizializzazione runtime: ${left}`);
-          }
+          log("Run dependencies remaining: " + left);
+          if (left > 0) setStatus("Runtime init: " + left + " dependencies", "run");
         },
         preRun: [function () {
-          appendLog("preRun iniziato.");
+          log("preRun started.");
           addRunDependency("ppsspp-assets");
           (async () => {
             try {
               await preloadAssets(FS);
               gameArg = await preloadGame(FS);
               Module.arguments.length = 0;
-              if (gameArg) {
-                Module.arguments.push(gameArg);
-              }
-              appendLog("Argomenti PPSSPP: " + JSON.stringify(Module.arguments));
-              setStatus("Avvio PPSSPP...");
-            } catch (error) {
-              appendLog("preRun fallito: " + (error?.stack || error));
-              setStatus(error.message || String(error), true);
-              throw error;
+              if (gameArg) Module.arguments.push(gameArg);
+              log("PPSSPP arguments: " + JSON.stringify(Module.arguments), "info");
+              setStatus("Starting PPSSPP\u2026", "run");
+              showLoading("Starting PPSSPP\u2026");
+            } catch(err) {
+              log("preRun failed: " + (err?.stack || err), "err");
+              setStatus(err.message || String(err), "err");
+              hideLoading(); throw err;
             } finally {
-              appendLog("preRun completato, rimuovo dependency asset.");
+              log("preRun complete, removing asset dependency.");
               removeRunDependency("ppsspp-assets");
             }
           })();
         }],
         onRuntimeInitialized() {
-          appendLog("Runtime inizializzato.");
-          setStatus(gameArg ? "Runtime pronto, avvio gioco..." : "Runtime pronto, avvio UI...");
+          log("Runtime initialized.", "ok");
+          setStatus(gameArg ? "Runtime ready — launching game\u2026" : "Runtime ready — launching UI\u2026", "ok");
+          hideLoading();
           setTimeout(describeAudio, 1000);
-          setInterval(reportGameAudioStatus, 5000);
+          setInterval(reportAudioStatus, 5000);
+          setInterval(updateInfoPanel,   2000);
         },
         onAbort(reason) {
-          appendLog("Abort runtime: " + reason);
-          setStatus("Abort: " + reason, true);
+          log("Runtime abort: " + reason, "err");
+          setStatus("Abort: " + reason, "err");
+          hideLoading();
         }
       };
 
       const script = document.createElement("script");
-      script.src = BUILD_DIR + "PPSSPPSDL.js?v=" + BUILD_STAMP;
-      appendLog("Carico script: " + script.src);
-      script.onload = () => appendLog("Script PPSSPPSDL.js caricato.");
-      script.onerror = () => setStatus("Impossibile caricare PPSSPPSDL.js", true);
+      script.src   = BUILD_DIR + "PPSSPPSDL.js?v=" + BUILD_STAMP;
+      log("Loading script: " + script.src);
+      script.onload  = () => log("PPSSPPSDL.js loaded.", "ok");
+      script.onerror = () => { setStatus("Failed to load PPSSPPSDL.js", "err"); hideLoading(); };
       document.body.appendChild(script);
     }
 
+    /* ── Event wiring ───────────────────────────────────────────────── */
     fileInput.addEventListener("change", () => {
       selectedGame = fileInput.files[0] || null;
-      setStatus(selectedGame ? `Selezionato: ${selectedGame.name}` : "Pronto. Scegli un file o avvia solo la UI.");
+      // Update the visible text node inside the label
+      const textNode = fileLabel.firstChild;
+      if (textNode && textNode.nodeType === 3)
+        textNode.textContent = (selectedGame ? "\uD83D\uDCC2 " + selectedGame.name : "\uD83D\uDCC2 Open ROM") + " ";
+      setStatus(selectedGame ? "Selected: " + selectedGame.name : "Ready. Open a ROM or launch the UI.");
     });
 
     startBtn.addEventListener("click", start);
-    audioBtn.addEventListener("pointerdown", () => {
-      playHtmlAudioTone();
-      const context = trackedAudioContexts[trackedAudioContexts.length - 1] || window.Module?.SDL2?.audioContext;
-      if (context) {
-        context.resume?.();
-        playWebAudioTone(context);
+
+    window.addEventListener("pointerdown", () => { if (started) unlockAudio(); });
+    window.addEventListener("keydown",      () => { if (started) unlockAudio(); });
+
+    // ── Fullscreen + cursor auto-hide ─────────────────────────────────
+    let _fsCursorTimer = null;
+    function _hideCursor() { document.body.classList.add("fs-cursor-hidden"); }
+    function _showCursor() {
+      document.body.classList.remove("fs-cursor-hidden");
+      clearTimeout(_fsCursorTimer);
+      if (document.fullscreenElement) _fsCursorTimer = setTimeout(_hideCursor, 2000);
+    }
+    document.addEventListener("fullscreenchange", () => {
+      if (document.fullscreenElement) {
+        // entered fullscreen — hide cursor after 2 s
+        _fsCursorTimer = setTimeout(_hideCursor, 2000);
+        document.addEventListener("mousemove", _showCursor);
+        document.addEventListener("pointerdown", _showCursor);
+      } else {
+        // exited fullscreen — always show cursor
+        clearTimeout(_fsCursorTimer);
+        document.body.classList.remove("fs-cursor-hidden");
+        document.removeEventListener("mousemove", _showCursor);
+        document.removeEventListener("pointerdown", _showCursor);
       }
     });
-    audioBtn.addEventListener("click", async () => {
-      await createOrResumeAudioContext();
-      await unlockAudio();
-      describeAudio();
-    });
-    window.addEventListener("pointerdown", () => {
-      if (started) unlockAudio();
-    });
-    window.addEventListener("keydown", () => {
-      if (started) unlockAudio();
-    });
     fullscreenBtn.addEventListener("click", () => {
-      canvas.requestFullscreen?.();
+      canvas.requestFullscreen?.({ navigationUI: "hide" });
       canvas.focus();
       describeAudio();
     });
+
+    /* ── Init ───────────────────────────────────────────────────────── */
+    log("Page loaded. crossOriginIsolated=" + window.crossOriginIsolated, window.crossOriginIsolated ? "ok" : "warn");
+    log("Build: " + BUILD_STAMP, "dim");
+    probeWebGLFeatures();
+    updateInfoPanel();
   </script>
 </body>
 </html>
