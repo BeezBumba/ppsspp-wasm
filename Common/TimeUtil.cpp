@@ -258,6 +258,12 @@ double Instant::ElapsedSeconds() const {
 
 #define SLEEP_LOG_ENABLED 0
 
+#if defined(__EMSCRIPTEN_PTHREADS__)
+static bool EmscriptenIsPthreadWorker() {
+	return emscripten_is_main_runtime_thread() == 0;
+}
+#endif
+
 void sleep_ms(int ms, const char *reason) {
 	if (ms <= 0) {
 		return;
@@ -270,7 +276,11 @@ void sleep_ms(int ms, const char *reason) {
 #elif defined(HAVE_LIBNX)
 	svcSleepThread(ms * 1000000);
 #elif defined(__EMSCRIPTEN_PTHREADS__)
-	emscripten_thread_sleep(ms);
+	if (EmscriptenIsPthreadWorker()) {
+		emscripten_thread_sleep(ms);
+	} else {
+		emscripten_sleep(ms);
+	}
 #elif defined(__EMSCRIPTEN__)
 	emscripten_sleep(ms);
 #else
@@ -290,7 +300,11 @@ void sleep_us(int us, const char *reason) {
 #elif defined(HAVE_LIBNX)
 	svcSleepThread(us * 1000);
 #elif defined(__EMSCRIPTEN_PTHREADS__)
-	emscripten_thread_sleep(us / 1000);
+	if (EmscriptenIsPthreadWorker()) {
+		emscripten_thread_sleep(us / 1000);
+	} else {
+		emscripten_sleep(us / 1000);
+	}
 #elif defined(__EMSCRIPTEN__)
 	emscripten_sleep(us / 1000);
 #else
@@ -349,7 +363,11 @@ void sleep_precise(double seconds, const char *reason) {
 #elif defined(HAVE_LIBNX)
 	svcSleepThread((int64_t)(seconds * 1000000000.0));
 #elif defined(__EMSCRIPTEN_PTHREADS__)
-	emscripten_thread_sleep(seconds * 1000.0);
+	if (EmscriptenIsPthreadWorker()) {
+		emscripten_thread_sleep(seconds * 1000.0);
+	} else {
+		emscripten_sleep(seconds * 1000.0);
+	}
 #elif defined(__EMSCRIPTEN__)
 	emscripten_sleep(seconds * 1000.0);
 #else

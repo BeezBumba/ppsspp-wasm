@@ -6,8 +6,10 @@ endif()
 
 add_subdirectory(armips)
 
-if(NOT USING_GLES2)
-	add_subdirectory(glew)
+if(NOT USING_GLES2 AND NOT EMSCRIPTEN)
+	if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+		add_subdirectory(glew)
+	endif()
 endif()
 
 set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "let's not build binaries we don't need" FORCE)

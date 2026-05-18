@@ -271,6 +271,11 @@
 
       let gameArg = null;
 
+      // With -sPROXY_TO_PTHREAD, Emscripten transfers the canvas to a Web
+      // Worker via OffscreenCanvas. The canvas element MUST NOT have had any
+      // getContext() call before this point (the browser would otherwise own
+      // the context and the transfer would fail). Module.canvas must be set
+      // before the PPSSPPSDL.js script executes.
       window.Module = {
         canvas,
         arguments: [],

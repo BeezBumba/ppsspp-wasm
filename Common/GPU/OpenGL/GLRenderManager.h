@@ -239,6 +239,10 @@ public:
 	void ThreadStart(Draw::DrawContext *draw);
 	void ThreadEnd();
 	bool ThreadFrame(bool waitIfEmpty);  // Returns true if it did anything. False means the queue was empty.
+	// Non-blocking variant for WASM: drains whatever is already in the queue
+	// without waiting for new work. Returns true when a PRESENT was processed
+	// (frame complete). Never sets syncDone_ prematurely.
+	bool ThreadFrameAvailable();
 
 	void SetErrorCallback(ErrorCallbackFn callback, void *userdata) {
 		queueRunner_.SetErrorCallback(callback, userdata);

@@ -37,6 +37,10 @@ public:
 		return renderManager_->ThreadFrame(waitIfEmpty);
 	}
 
+	bool ThreadFrameAvailable() override {
+		return renderManager_->ThreadFrameAvailable();
+	}
+
 	void ThreadEnd() override {
 		renderManager_->ThreadEnd();
 	}

@@ -320,6 +320,7 @@ include_directories(ext/glslang)
 include_directories(ext/glew)
 
 if(EMSCRIPTEN)
+	set(USING_GLES2 ON)
 	set(OPENGL_LIBRARIES "-sMIN_WEBGL_VERSION=2" "-sMAX_WEBGL_VERSION=2")
 	add_compile_options("-sUSE_SDL=2")
 	add_compile_options(-msimd128)
@@ -330,6 +331,12 @@ if(EMSCRIPTEN)
 	add_link_options(-fexceptions)
 	add_link_options("-sALLOW_MEMORY_GROWTH=1" "-sINITIAL_MEMORY=268435456")
 	add_link_options("-sASSERTIONS=1")
+	# ASYNCIFY transforms emscripten_sleep() into a cooperative stack
+	# save/restore so the browser main thread never truly blocks.
+	# pthread_cond_wait() is NOT transformed by ASYNCIFY (it uses Atomics.wait
+	# in JS), so ThreadFrame must never block on the main thread.
+	# Instead we use ThreadFrameAvailable() which drains the queue without
+	# blocking, and yield with emscripten_sleep(0) when it is empty.
 	add_link_options("-sASYNCIFY=1")
 	add_link_options("-sPTHREAD_POOL_SIZE=16")
 	add_link_options("-sINCOMING_MODULE_JS_API=canvas,locateFile,print,printErr,setStatus,monitorRunDependencies,preRun,onRuntimeInitialized,onAbort,arguments")

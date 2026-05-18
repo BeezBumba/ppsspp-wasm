@@ -31,6 +31,7 @@ public:
 	// Called from the render thread from threaded backends.
 	virtual void ThreadStart() {}
 	virtual bool ThreadFrame(bool waitIfEmpty) { return true; }   // waitIfEmpty should normally be true, except in exit scenarios.
+	virtual bool ThreadFrameAvailable() { return ThreadFrame(false); } // Non-blocking: drains queue without waiting. For WASM main thread.
 	virtual void ThreadEnd() {}
 
 	// Useful for checks that need to be performed every frame.

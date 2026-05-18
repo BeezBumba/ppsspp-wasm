@@ -168,6 +168,34 @@ bool GLRenderManager::ThreadFrame(bool waitIfEmpty) {
 	return true;
 }
 
+// Drains whatever tasks are already in the queue without blocking.
+// Safe to call from the browser main thread under WASM/Emscripten because
+// it never calls pthread_cond_wait / Atomics.wait.
+// Returns true when a PRESENT task was processed (frame complete).
+bool GLRenderManager::ThreadFrameAvailable() {
+	_assert_(runCompileThread_);
+	bool frameComplete = false;
+	while (true) {
+		GLRRenderThreadTask *task = nullptr;
+		{
+			std::unique_lock<std::mutex> lock(pushMutex_);
+			if (renderThreadQueue_.empty()) {
+				break; // nothing left – do NOT touch syncDone_
+			}
+			task = renderThreadQueue_.front();
+			renderThreadQueue_.pop();
+		}
+		if (Run(*task)) {
+			// Run() returns true on PRESENT – frame has been swapped.
+			delete task;
+			frameComplete = true;
+			break;
+		}
+		delete task;
+	}
+	return frameComplete;
+}
+
 void GLRenderManager::StartThread() {
 	// There's not really a lot to do here anymore.
 	INFO_LOG(Log::G3D, "GLRenderManager::StartThread()");

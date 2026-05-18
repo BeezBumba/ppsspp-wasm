@@ -878,12 +878,8 @@ static void EmuThreadFunc(GraphicsContext *graphicsContext) {
 }
 
 static void EmuThreadStart(GraphicsContext *context) {
-#ifdef __EMSCRIPTEN__
-	emuThreadState = (int)EmuThreadState::DISABLED;
-#else
 	emuThreadState = (int)EmuThreadState::START_REQUESTED;
 	emuThread = std::thread(&EmuThreadFunc, context);
-#endif
 }
 
 static void EmuThreadStop(const char *reason) {
@@ -1809,9 +1805,6 @@ int main(int argc, char *argv[]) {
 	EnableFZ();
 
 	EmuThreadStart(graphicsContext);
-	if (emuThreadState == (int)EmuThreadState::DISABLED) {
-		NativeInitGraphics(graphicsContext);
-	}
 
 	graphicsContext->ThreadStart();
 
@@ -1863,46 +1856,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-	} else {
-#ifdef __EMSCRIPTEN__
-		struct MainLoopState {
-			SDL_Window *window;
-			GraphicsContext *graphicsContext;
-			InputStateTracker inputTracker;
-		};
-
-		MainLoopState *loopState = new MainLoopState{window, graphicsContext, {}};
-		emscripten_set_main_loop_arg([](void *arg) {
-			MainLoopState *state = (MainLoopState *)arg;
-			{
-				SDL_Event event;
-				while (SDL_PollEvent(&event)) {
-					ProcessSDLEvent(state->window, event, &state->inputTracker);
-				}
-			}
-			if (g_QuitRequested || g_RestartRequested) {
-				emscripten_cancel_main_loop();
-				return;
-			}
-			UpdateTextFocus();
-			UpdateSDLCursor();
-
-			state->inputTracker.MouseCaptureControl();
-
-			if (emuThreadState == (int)EmuThreadState::DISABLED) {
-				NativeFrame(state->graphicsContext);
-				state->graphicsContext->ThreadFrame(false);
-			}
-
-			{
-				std::lock_guard<std::mutex> guard(g_mutexWindow);
-				if (g_windowState.update) {
-					UpdateWindowState(state->window);
-				}
-			}
-		}, loopState, 0, true);
-#else
-		while (true) {
+	} else while (true) {
 		{
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
@@ -1924,8 +1878,17 @@ int main(int argc, char *argv[]) {
 
 		bool renderThreadPaused = Native_IsWindowHidden() && g_Config.bPauseWhenMinimized && emuThreadState != (int)EmuThreadState::DISABLED;
 		if (emuThreadState != (int)EmuThreadState::DISABLED && !renderThreadPaused) {
+#ifdef __EMSCRIPTEN__
+			// ThreadFrame(true) would call pthread_cond_wait → Atomics.wait, which
+			// is forbidden on the browser main thread even with ASYNCIFY.
+			// ThreadFrameAvailable() drains whatever is already queued without
+			// blocking; emscripten_sleep(0) below yields to the browser so the emu
+			// worker thread can run and push more work on the next JS tick.
+			graphicsContext->ThreadFrameAvailable();
+#else
 			if (!graphicsContext->ThreadFrame(true))
 				break;
+#endif
 		}
 
 		{
@@ -1963,7 +1926,13 @@ int main(int argc, char *argv[]) {
 			EmuThreadStart(graphicsContext);
 			graphicsContext->ThreadStart();
 		}
-	}
+#ifdef __EMSCRIPTEN__
+		// ASYNCIFY cooperative yield: saves the wasm call stack, returns
+		// control to the browser (lets the emu worker thread run, processes
+		// DOM events, flushes the WebGL commands). Execution resumes here
+		// on the next JS tick. emscripten_set_main_loop must NOT be used
+		// together with ASYNCIFY.
+		emscripten_sleep(0);
 #endif
 	}
 
