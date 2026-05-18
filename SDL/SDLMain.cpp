@@ -21,13 +21,16 @@ SDLJoystick *joystick = NULL;
 
 #include <atomic>
 #include <algorithm>
-#include <cmath>
 #include <csignal>
 #include <thread>
 #include <locale>
+#include <vector>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
+#endif
+
+#if defined(__EMSCRIPTEN__) && defined(PPSSPP_WASM_TRACE)
 #define WASM_TRACE(...) do { fprintf(stderr, "WASM SDL: " __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
 #else
 #define WASM_TRACE(...) do {} while (0)
@@ -144,7 +147,31 @@ int getDisplayNumber(void) {
 }
 
 void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
+#ifdef __EMSCRIPTEN__
+	const int numSamples = len / (int)(sizeof(float) * 2);
+	thread_local std::vector<short> mixBuffer;
+	mixBuffer.resize(numSamples * 2);
+	NativeMix(mixBuffer.data(), numSamples, g_sampleRate, userdata);
+
+	float *output = (float *)stream;
+	int peak = 0;
+	static int callbackCount = 0;
+	static int nonSilentCallbackCount = 0;
+	for (int i = 0; i < numSamples * 2; i++) {
+		peak = std::max(peak, std::abs((int)mixBuffer[i]));
+		output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+	}
+	callbackCount++;
+	if (peak > 0) {
+		nonSilentCallbackCount++;
+	}
+	if (callbackCount <= 5 || (callbackCount % 120) == 0) {
+		fprintf(stderr, "WASM audio callback count=%d nonsilent=%d frames=%d peak=%d rate=%d\n",
+			callbackCount, nonSilentCallbackCount, numSamples, peak, g_sampleRate);
+	}
+#else
 	NativeMix((short *)stream, len / (2 * 2), g_sampleRate, userdata);
+#endif
 }
 
 static SDL_AudioDeviceID audioDev = 0;
@@ -154,7 +181,11 @@ static void InitSDLAudioDevice(const std::string &name = "") {
 	SDL_AudioSpec fmt;
 	memset(&fmt, 0, sizeof(fmt));
 	fmt.freq = g_sampleRate;
+#ifdef __EMSCRIPTEN__
+	fmt.format = AUDIO_F32;
+#else
 	fmt.format = AUDIO_S16;
+#endif
 	fmt.channels = 2;
 	fmt.samples = std::max(g_Config.iSDLAudioBufferSize, 128);
 	fmt.callback = &sdl_mixaudio_callback;
@@ -196,6 +227,10 @@ static void InitSDLAudioDevice(const std::string &name = "") {
 	if (audioDev <= 0) {
 		ERROR_LOG(Log::Audio, "Failed to open audio device '%s', second try. Giving up.", SDL_GetError());
 	} else {
+		if (g_retFmt.freq != fmt.freq) {
+			INFO_LOG(Log::Audio, "Using SDL output audio freq: %d (requested: %d)", g_retFmt.freq, fmt.freq);
+			g_sampleRate = g_retFmt.freq;
+		}
 		if (g_retFmt.samples != fmt.samples) // Notify, but still use it
 			ERROR_LOG(Log::Audio, "Output audio samples: %d (requested: %d)", g_retFmt.samples, fmt.samples);
 		if (g_retFmt.format != fmt.format || g_retFmt.channels != fmt.channels) {
@@ -205,8 +240,13 @@ static void InitSDLAudioDevice(const std::string &name = "") {
 			ERROR_LOG(Log::Audio, "Output audio channels: %d (requested: %d)", g_retFmt.channels, fmt.channels);
 			ERROR_LOG(Log::Audio, "Provided output format does not match requirement, turning audio off");
 			SDL_CloseAudioDevice(audioDev);
+			audioDev = 0;
 		}
-		SDL_PauseAudioDevice(audioDev, 0);
+		if (audioDev > 0) {
+			SDL_PauseAudioDevice(audioDev, 0);
+			INFO_LOG(Log::Audio, "SDL audio device started: freq=%d format=%d channels=%d samples=%d",
+				g_retFmt.freq, g_retFmt.format, g_retFmt.channels, g_retFmt.samples);
+		}
 	}
 }
 
@@ -1926,11 +1966,9 @@ int main(int argc, char *argv[]) {
 	SDL_StopTextInput();
 	WASM_TRACE("SDL_StopTextInput done");
 
-#if defined(__EMSCRIPTEN__)
-	WASM_TRACE("Skipping SDL audio init on Emscripten for debug");
-#else
+	fprintf(stderr, "PPSSPP audio config enable=%d gameVolume=%d mode=%d buffer=%d\n",
+		g_Config.bEnableSound ? 1 : 0, g_Config.iGameVolume, g_Config.iAudioPlaybackMode, g_Config.iSDLAudioBufferSize);
 	InitSDLAudioDevice();
-#endif
 	g_audioStartTime = time_now_d();
 	WASM_TRACE("audio init section done");
 

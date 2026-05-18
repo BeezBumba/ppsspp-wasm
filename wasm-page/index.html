@@ -175,6 +175,7 @@
         <input id="gameFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
       </label>
       <button id="startBtn" class="primary">Avvia</button>
+      <button id="audioBtn">Audio</button>
       <button id="fullscreenBtn">Fullscreen</button>
     </div>
   </header>
@@ -204,24 +205,249 @@
     const canvas = document.getElementById("canvas");
     const fileInput = document.getElementById("gameFile");
     const startBtn = document.getElementById("startBtn");
+    const audioBtn = document.getElementById("audioBtn");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const statusEl = document.getElementById("status");
     const logEl = document.getElementById("log");
 
     let selectedGame = null;
     let started = false;
+    const trackedAudioContexts = [];
+    const audioDebug = {
+      callbacks: 0,
+      nonsilent: 0,
+      peak: 0,
+      rate: 0,
+      deviceStarted: false,
+      pushes: 0,
+      pushNonsilent: 0,
+      pushPeak: 0,
+      workletPeak: 0,
+      workletTotal: 0,
+      ringDropped: 0,
+      fallbackPeak: 0,
+      fallbackDropped: 0,
+    };
+    // ── AudioWorklet output player ─────────────────────────────────────────────
+    // Receives audio from ppssppPushAudioSamples (called by SDL's C callback
+    // via EM_ASM).  The worklet reads from a SharedArrayBuffer ring-buffer so
+    // it is completely decoupled from any ScriptProcessorNode reliability issues.
+    let audioWorkletPlayer     = null;
+    let audioWorkletIniting    = false;
+    let scriptFallbackPlayer   = null;
+    let useScriptFallbackAudio = true;
+    let gameAudioGain = 3.0;
 
-    const MAX_LOG_LINES = 500;
+    const WORKLET_CODE = `
+class PPSSPPAudio extends AudioWorkletProcessor {
+  constructor(o) {
+    super(o);
+    const s = o.processorOptions.sab;
+    this.wi    = new Int32Array(s, 0, 1);
+    this.ri    = new Int32Array(s, 4, 1);
+    this.cap   = o.processorOptions.cap;
+    this.data  = new Float32Array(s, 8, this.cap * 2);
+    this.tick  = 0;         // used for periodic status reports
+    this.total = 0;         // total frames consumed
+  }
+  process(_, outputs) {
+    const ch = outputs[0];
+    if (!ch || !ch[0]) return true;
+    const n = ch[0].length;   // 128 frames per call
+    let r = Atomics.load(this.ri, 0);
+    const w = Atomics.load(this.wi, 0);
+    const avail = (w - r + this.cap) % this.cap;
+    const read  = Math.min(n, avail);
+    let peak = 0;
+    for (let i = 0; i < read; i++) {
+      const idx = r * 2;
+      const l = this.data[idx];
+      const rr = this.data[idx + 1];
+      ch[0][i] = l;
+      if (ch[1]) ch[1][i] = rr;
+      peak = Math.max(peak, Math.abs(l), Math.abs(rr));
+      r = (r + 1) % this.cap;
+    }
+    for (let i = read; i < n; i++) { ch[0][i] = 0; if (ch[1]) ch[1][i] = 0; }
+    Atomics.store(this.ri, 0, r);
+    this.total += read;
+    // Send a status ping to the main thread once per ~second (344 calls @ 128/44100)
+    this.tick++;
+    if (this.tick === 1 || this.tick % 344 === 0) {
+      this.port.postMessage({ type: 'status', tick: this.tick, avail, read, total: this.total, peak });
+    }
+    return true;
+  }
+}
+registerProcessor('ppsspp-audio', PPSSPPAudio);
+`;
+
+    async function initAudioWorkletPlayer(ctx) {
+      if (audioWorkletPlayer || audioWorkletIniting || !ctx) return;
+      if (!window.crossOriginIsolated) {
+        appendLog("AUDIO: SharedArrayBuffer non disponibile (crossOriginIsolated=false). Verifica gli header COOP/COEP del server.");
+        return;
+      }
+      audioWorkletIniting = true;
+      try {
+        const blob = new Blob([WORKLET_CODE], { type: "application/javascript" });
+        const burl = URL.createObjectURL(blob);
+        await ctx.audioWorklet.addModule(burl);
+        URL.revokeObjectURL(burl);
+        const cap = 16384;
+        const sab = new SharedArrayBuffer(8 + cap * 2 * 4);
+        const node = new AudioWorkletNode(ctx, "ppsspp-audio", {
+          numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
+          processorOptions: { sab, cap },
+        });
+        // Wire a GainNode so the worklet output passes through a JS-reachable node,
+        // preventing the AudioWorkletNode from being garbage-collected even if the
+        // spec says connected nodes are retained.
+        const gain = ctx.createGain();
+        gain.gain.value = 1.0;
+        if (!useScriptFallbackAudio) {
+          node.connect(gain);
+          gain.connect(ctx.destination);
+        }
+        // Listen for status pings from the worklet thread.
+        node.port.onmessage = (ev) => {
+          if (ev.data?.type === 'status') {
+            const d = ev.data;
+            audioDebug.workletPeak = d.peak || 0;
+            audioDebug.workletTotal = d.total || audioDebug.workletTotal;
+            if (d.tick <= 3 || d.tick % 344 === 0) {
+              appendLog(`Worklet tick=${d.tick}: avail=${d.avail} read=${d.read} peak=${(d.peak || 0).toFixed(4)} totalConsumed=${d.total}`);
+            }
+          }
+        };
+        node.onprocessorerror = (e) => {
+          appendLog("AUDIO: errore nel processore AudioWorklet: " + (e?.message || e));
+        };
+        audioWorkletPlayer = {
+          node, gain,  // strong refs – prevent GC
+          wi: new Int32Array(sab, 0, 1), ri: new Int32Array(sab, 4, 1),
+          data: new Float32Array(sab, 8, cap * 2), cap,
+        };
+        appendLog(`AUDIO: AudioWorklet pronto (sampleRate=${ctx.sampleRate}, buffer=${cap} frames, gain→destination).`);
+      } catch (e) {
+        appendLog("AUDIO: AudioWorklet init fallito: " + (e?.message || e));
+      } finally {
+        audioWorkletIniting = false;
+      }
+    }
+
+    function initScriptFallbackPlayer(ctx) {
+      if (scriptFallbackPlayer || !ctx) return;
+      try {
+        const cap = 32768;
+        const data = new Float32Array(cap * 2);
+        const processor = ctx.createScriptProcessor(2048, 0, 2);
+        const gain = ctx.createGain();
+        let r = 0;
+        let w = 0;
+        let total = 0;
+        let tick = 0;
+        processor.onaudioprocess = (event) => {
+          const left = event.outputBuffer.getChannelData(0);
+          const right = event.outputBuffer.getChannelData(1);
+          const n = left.length;
+          const avail = (w - r + cap) % cap;
+          const read = Math.min(n, avail);
+          let peak = 0;
+          for (let i = 0; i < read; i++) {
+            const idx = r * 2;
+            const l = data[idx];
+            const rr = data[idx + 1];
+            left[i] = l;
+            right[i] = rr;
+            peak = Math.max(peak, Math.abs(l), Math.abs(rr));
+            r = (r + 1) % cap;
+          }
+          for (let i = read; i < n; i++) {
+            left[i] = 0;
+            right[i] = 0;
+          }
+          total += read;
+          audioDebug.fallbackPeak = peak;
+          tick++;
+          if (tick === 1 || tick % 22 === 0) {
+            appendLog(`Script fallback tick=${tick}: avail=${avail} read=${read} peak=${peak.toFixed(4)} totalConsumed=${total}`);
+          }
+        };
+        gain.gain.value = gameAudioGain;
+        processor.connect(gain);
+        gain.connect(ctx.destination);
+        scriptFallbackPlayer = {
+          data, cap, processor, gain,
+          push(samples, frames) {
+            const push = Math.min(frames, cap - 1);
+            const used = (w - r + cap) % cap;
+            const free = cap - 1 - used;
+            if (push > free) {
+              const drop = push - free;
+              r = (r + drop) % cap;
+              audioDebug.fallbackDropped += drop;
+            }
+            for (let i = 0; i < push; i++) {
+              data[w * 2] = Math.max(-1, Math.min(1, samples[i * 2] || 0));
+              data[w * 2 + 1] = Math.max(-1, Math.min(1, samples[i * 2 + 1] || 0));
+              w = (w + 1) % cap;
+            }
+          }
+        };
+        appendLog(`AUDIO: ScriptProcessor fallback pronto (buffer=${cap} frames, gain=${gameAudioGain}, processor→gain→destination).`);
+      } catch (e) {
+        appendLog("AUDIO: ScriptProcessor fallback init fallito: " + (e?.message || e));
+      }
+    }
+
+    // Called from SDL's C audio callback via EM_ASM – must be fast, no DOM ops.
+    function pushGameAudioSamples(samples, frames) {
+      scriptFallbackPlayer?.push(samples, frames);
+      if (useScriptFallbackAudio) return;
+      const p = audioWorkletPlayer;
+      if (!p || !samples || frames <= 0) return;
+      let w = Atomics.load(p.wi, 0);
+      let r = Atomics.load(p.ri, 0);
+      const used = (w - r + p.cap) % p.cap;
+      let free = p.cap - 1 - used;
+      const push = Math.min(frames, p.cap - 1);
+      if (push > free) {
+        const drop = push - free;
+        r = (r + drop) % p.cap;
+        Atomics.store(p.ri, 0, r);
+        audioDebug.ringDropped += drop;
+        free += drop;
+      }
+      for (let i = 0; i < push; i++) {
+        p.data[w * 2]     = Math.max(-1, Math.min(1, samples[i * 2]     || 0));
+        p.data[w * 2 + 1] = Math.max(-1, Math.min(1, samples[i * 2 + 1] || 0));
+        w = (w + 1) % p.cap;
+      }
+      Atomics.store(p.wi, 0, w);
+    }
+
+    const MAX_LOG_LINES = 300;
     let logLines = [];
+    let pendingLogLines = [];
+    let logRafId = 0;
 
-    function appendLog(text) {
-      const now = new Date().toLocaleTimeString();
-      const line = `[${now}] ${text}`;
-      logLines.push(line);
+    function flushLog() {
+      logRafId = 0;
+      if (!pendingLogLines.length) return;
+      logLines.push(...pendingLogLines);
+      pendingLogLines = [];
       if (logLines.length > MAX_LOG_LINES) logLines.splice(0, logLines.length - MAX_LOG_LINES);
       logEl.textContent = logLines.join("\n") + "\n";
       logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function appendLog(text) {
+      const line = `[${new Date().toLocaleTimeString()}] ${text}`;
+      pendingLogLines.push(line);
       console.log(line);
+      updateAudioDebugFromLog(text);
+      if (!logRafId) logRafId = requestAnimationFrame(flushLog);
     }
 
     function setStatus(text, isError = false) {
@@ -229,6 +455,196 @@
       statusEl.classList.toggle("error", isError);
       appendLog((isError ? "STATUS ERROR: " : "STATUS: ") + text);
     }
+
+    function updateAudioDebugFromLog(text) {
+      if (text.includes("SDL audio device started")) {
+        audioDebug.deviceStarted = true;
+      }
+
+      const match = text.match(/WASM audio callback count=(\d+) nonsilent=(\d+) frames=(\d+) peak=(\d+) rate=(\d+)/);
+      if (match) {
+        audioDebug.callbacks = Number(match[1]);
+        audioDebug.nonsilent = Number(match[2]);
+        audioDebug.peak = Number(match[4]);
+        audioDebug.rate = Number(match[5]);
+      }
+
+      const pushMatch = text.match(/WASM audio push count=(\d+) nonsilent=(\d+) frames=(\d+) peak=(\d+)/);
+      if (pushMatch) {
+        audioDebug.pushes = Number(pushMatch[1]);
+        audioDebug.pushNonsilent = Number(pushMatch[2]);
+        audioDebug.pushPeak = Number(pushMatch[4]);
+        audioDebug.peak = Math.max(audioDebug.peak, Number(pushMatch[4]));
+      }
+
+      const processMatch = text.match(/ScriptProcessor onaudioprocess fires: count=(\d+), queued=(\d+)/);
+      if (processMatch) {
+        audioDebug.processorFires = Number(processMatch[1]);
+      }
+    }
+
+    async function reportGameAudioStatus() {
+      if (!started) {
+        return;
+      }
+
+      // Aggressively try to resume any suspended AudioContext.
+      const SDL2 = window.Module?.SDL2 || window.SDL2;
+      const allContexts = [...trackedAudioContexts];
+      if (SDL2?.audioContext && !allContexts.includes(SDL2.audioContext)) {
+        allContexts.push(SDL2.audioContext);
+      }
+      for (const ctx of allContexts) {
+        if (ctx && ctx.state === "suspended") {
+          try { await ctx.resume(); appendLog(`AudioContext auto-resumed: state=${ctx.state}`); } catch(e) {}
+        }
+      }
+
+      const sdlCtx = window.Module?.SDL2?.audioContext;
+      const ctxState = sdlCtx ? sdlCtx.state : "nessuno";
+      if (audioDebug.callbacks === 0) {
+        appendLog(`AUDIO STATUS: SDL callbacks=0, player=SDL, ctx=${ctxState}. Aspetta avvio gioco o clicca Audio.`);
+      } else {
+        appendLog(`AUDIO STATUS: callbacks=${audioDebug.callbacks} (nonsilent=${audioDebug.nonsilent}), peak=${audioDebug.peak}, player=SDL, ctx=${ctxState}.`);
+      }
+    }
+
+    function installAudioContextTracking() {
+      for (const name of ["AudioContext", "webkitAudioContext"]) {
+        const OriginalAudioContext = window[name];
+        if (!OriginalAudioContext || OriginalAudioContext.__ppssppTracked) {
+          continue;
+        }
+
+        function TrackedAudioContext(...args) {
+          const context = new OriginalAudioContext(...args);
+          trackedAudioContexts.push(context);
+          appendLog(`${name} creato: state=${context.state}, sampleRate=${context.sampleRate}`);
+          context.addEventListener?.("statechange", () => {
+            appendLog(`${name} state=${context.state}`);
+          });
+          return context;
+        }
+
+        TrackedAudioContext.prototype = OriginalAudioContext.prototype;
+        Object.setPrototypeOf(TrackedAudioContext, OriginalAudioContext);
+        TrackedAudioContext.__ppssppTracked = true;
+        window[name] = TrackedAudioContext;
+      }
+    }
+
+    function describeAudio() {
+      const SDL2 = window.Module?.SDL2 || window.SDL2;
+      const context = SDL2?.audioContext || trackedAudioContexts[trackedAudioContexts.length - 1];
+      if (!context) {
+        appendLog("Audio status: nessun AudioContext creato.");
+        return;
+      }
+      appendLog(`Audio status: state=${context.state}, sampleRate=${context.sampleRate}, contexts=${trackedAudioContexts.length}`);
+    }
+
+    async function createOrResumeAudioContext() {
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+          appendLog("WebAudio non disponibile in questo browser.");
+          return null;
+        }
+
+        let context = window.Module?.SDL2?.audioContext || trackedAudioContexts[trackedAudioContexts.length - 1];
+        if (!context || context.state === "closed") {
+          context = new AudioContextClass();
+        }
+        if (context.state === "suspended") {
+          await context.resume();
+        }
+        appendLog(`AudioContext pronto: state=${context.state}, sampleRate=${context.sampleRate}`);
+        return context;
+      } catch (error) {
+        appendLog("Creazione AudioContext fallita: " + (error?.message || error));
+        return null;
+      }
+    }
+
+    async function unlockAudio() {
+      const sdlCtx = window.Module?.SDL2?.audioContext;
+      const all = sdlCtx ? [sdlCtx] : [...trackedAudioContexts];
+      for (const ctx of all) {
+        if (ctx?.state === "suspended") {
+          try { await ctx.resume(); } catch(e) {}
+        }
+      }
+    }
+
+    async function playAudioTestTone() {
+      const context = await createOrResumeAudioContext();
+      if (!context) {
+        return;
+      }
+
+      playWebAudioTone(context);
+    }
+
+    function playWebAudioTone(context) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "square";
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.2, context.currentTime);
+      gain.gain.setValueAtTime(0.2, context.currentTime + 0.45);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.5);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.5);
+      appendLog(`Beep WebAudio inviato: state=${context.state}, currentTime=${context.currentTime.toFixed(3)}`);
+    }
+
+    function playHtmlAudioTone() {
+      const sampleRate = 44100;
+      const duration = 0.5;
+      const sampleCount = Math.floor(sampleRate * duration);
+      const dataBytes = sampleCount * 2;
+      const buffer = new ArrayBuffer(44 + dataBytes);
+      const view = new DataView(buffer);
+
+      function writeString(offset, text) {
+        for (let i = 0; i < text.length; i++) {
+          view.setUint8(offset + i, text.charCodeAt(i));
+        }
+      }
+
+      writeString(0, "RIFF");
+      view.setUint32(4, 36 + dataBytes, true);
+      writeString(8, "WAVE");
+      writeString(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, "data");
+      view.setUint32(40, dataBytes, true);
+
+      for (let i = 0; i < sampleCount; i++) {
+        const envelope = Math.min(1, i / 600) * Math.min(1, (sampleCount - i) / 1200);
+        const sample = Math.sin(2 * Math.PI * 660 * i / sampleRate) * 0.35 * envelope;
+        view.setInt16(44 + i * 2, Math.round(sample * 32767), true);
+      }
+
+      const blob = new Blob([buffer], { type: "audio/wav" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.volume = 1.0;
+      audio.addEventListener("ended", () => URL.revokeObjectURL(url), { once: true });
+      audio.play()
+        .then(() => appendLog("Beep HTMLAudio inviato."))
+        .catch((error) => appendLog("Beep HTMLAudio bloccato: " + (error?.message || error)));
+    }
+
+    installAudioContextTracking();
 
     appendLog("Pagina caricata. crossOriginIsolated=" + window.crossOriginIsolated);
     appendLog("Build stamp: " + BUILD_STAMP);
@@ -276,21 +692,27 @@
 
       FS.mkdirTree(VIRTUAL_ASSETS);
       appendLog("Asset nel manifest: " + files.length);
-      for (let i = 0; i < files.length; i++) {
-        const rel = files[i];
-        const target = VIRTUAL_ASSETS + "/" + rel;
-        const dir = dirname(target);
-        if (dir) {
-          FS.mkdirTree(dir);
-        }
+      let nextIndex = 0;
+      const workerCount = Math.min(8, Math.max(2, navigator.hardwareConcurrency || 4), files.length);
+      async function loadNextAsset() {
+        while (nextIndex < files.length) {
+          const i = nextIndex++;
+          const rel = files[i];
+          const target = VIRTUAL_ASSETS + "/" + rel;
+          const dir = dirname(target);
+          if (dir) {
+            FS.mkdirTree(dir);
+          }
 
-        setStatus(`Caricamento asset ${i + 1}/${files.length}: ${rel}`);
-        const response = await fetch(ASSET_DIR + rel);
-        if (!response.ok) {
-          throw new Error(`Asset non trovato: ${rel} (${response.status})`);
+          setStatus(`Caricamento asset ${i + 1}/${files.length}: ${rel}`);
+          const response = await fetch(ASSET_DIR + rel);
+          if (!response.ok) {
+            throw new Error(`Asset non trovato: ${rel} (${response.status})`);
+          }
+          FS.writeFile(target, new Uint8Array(await response.arrayBuffer()));
         }
-        FS.writeFile(target, new Uint8Array(await response.arrayBuffer()));
       }
+      await Promise.all(Array.from({ length: workerCount }, loadNextAsset));
       const fontAtlasPath = VIRTUAL_ASSETS + "/font_atlas.meta";
       if (!FS.analyzePath(fontAtlasPath).exists) {
         throw new Error("Asset critico mancante: " + fontAtlasPath);
@@ -322,15 +744,22 @@
       fileInput.disabled = true;
       canvas.focus();
 
+      // Pre-create and unlock the AudioContext before loading SDL so its audio
+      // device can attach to a user-gesture-unlocked context.
+      let preAudioCtx = null;
+      try {
+        preAudioCtx = new AudioContext({ sampleRate: 44100 });
+        await preAudioCtx.resume();
+        appendLog(`AUDIO: AudioContext pre-inizializzato per SDL (state=${preAudioCtx.state}, sampleRate=${preAudioCtx.sampleRate}).`);
+      } catch (e) {
+        appendLog("AUDIO: pre-init AudioContext fallito: " + (e?.message || e));
+      }
+
       let gameArg = null;
 
-      // With -sPROXY_TO_PTHREAD, Emscripten transfers the canvas to a Web
-      // Worker via OffscreenCanvas. The canvas element MUST NOT have had any
-      // getContext() call before this point (the browser would otherwise own
-      // the context and the transfer would fail). Module.canvas must be set
-      // before the PPSSPPSDL.js script executes.
       window.Module = {
         canvas,
+        SDL2: preAudioCtx ? { audioContext: preAudioCtx } : {},  // SDL riusa il context già pronto
         arguments: [],
         locateFile(path) {
           let url = BUILD_DIR + path;
@@ -344,7 +773,14 @@
           appendLog("stdout: " + text);
         },
         printErr(text) {
-          appendLog("stderr: " + text);
+          // Parse audio debug counters but suppress the noisy per-120-call logs
+          // from the panel – they cause visible lag.  Show only errors and
+          // the first 5 audio lines.
+          updateAudioDebugFromLog(text);
+          const isAudioNoise = /WASM audio (push|callback) count=/.test(text);
+          if (!isAudioNoise) {
+            appendLog("stderr: " + text);
+          }
         },
         setStatus(text) {
           if (text) {
@@ -383,6 +819,8 @@
         onRuntimeInitialized() {
           appendLog("Runtime inizializzato.");
           setStatus(gameArg ? "Runtime pronto, avvio gioco..." : "Runtime pronto, avvio UI...");
+          setTimeout(describeAudio, 1000);
+          setInterval(reportGameAudioStatus, 5000);
         },
         onAbort(reason) {
           appendLog("Abort runtime: " + reason);
@@ -404,9 +842,29 @@
     });
 
     startBtn.addEventListener("click", start);
+    audioBtn.addEventListener("pointerdown", () => {
+      playHtmlAudioTone();
+      const context = trackedAudioContexts[trackedAudioContexts.length - 1] || window.Module?.SDL2?.audioContext;
+      if (context) {
+        context.resume?.();
+        playWebAudioTone(context);
+      }
+    });
+    audioBtn.addEventListener("click", async () => {
+      await createOrResumeAudioContext();
+      await unlockAudio();
+      describeAudio();
+    });
+    window.addEventListener("pointerdown", () => {
+      if (started) unlockAudio();
+    });
+    window.addEventListener("keydown", () => {
+      if (started) unlockAudio();
+    });
     fullscreenBtn.addEventListener("click", () => {
       canvas.requestFullscreen?.();
       canvas.focus();
+      describeAudio();
     });
   </script>
 </body>

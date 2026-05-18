@@ -13,7 +13,7 @@ class WasmThreadingHandler(SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description="Serve PPSSPP wasm with pthread-compatible headers.")
-    parser.add_argument("--bind", default="127.0.0.1")
+    parser.add_argument("--bind", "--address", dest="bind", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8081)
     args = parser.parse_args()
 

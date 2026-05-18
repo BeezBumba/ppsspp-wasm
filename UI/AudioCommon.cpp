@@ -15,6 +15,12 @@
 // Official git repository and contact information can be found at
 // https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
 
+#ifdef __EMSCRIPTEN__
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#endif
+
 #include "Common/System/System.h"
 #include "Core/Config.h"
 #include "Core/HW/StereoResampler.h"  // TODO: doesn't belong in Core/HW...
@@ -62,6 +68,22 @@ void System_AudioClear() {
 
 void System_AudioPushSamples(const int32_t *audio, int numSamples, float volume) {
 	if (audio) {
+#ifdef __EMSCRIPTEN__
+		int peak = 0;
+		for (int i = 0; i < numSamples * 2; i++) {
+			peak = std::max(peak, std::abs(audio[i]));
+		}
+		static int pushCount = 0;
+		static int nonSilentPushCount = 0;
+		pushCount++;
+		if (peak > 0) {
+			nonSilentPushCount++;
+		}
+		if (pushCount <= 5 || (pushCount % 120) == 0) {
+			fprintf(stderr, "WASM audio push count=%d nonsilent=%d frames=%d peak=%d volume=%0.3f\n",
+				pushCount, nonSilentPushCount, numSamples, peak, volume);
+		}
+#endif
 		if (g_Config.iAudioPlaybackMode == (int)AudioSyncMode::GRANULAR) {
 			g_granular.PushSamples(audio, numSamples, volume);
 		} else {
