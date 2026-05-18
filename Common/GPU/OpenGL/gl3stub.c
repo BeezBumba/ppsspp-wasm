@@ -20,6 +20,135 @@
 
 #if defined(USING_GLES2)
 #if !PPSSPP_PLATFORM(IOS)
+
+#ifdef __EMSCRIPTEN__
+#include <SDL2/SDL.h>
+// On Emscripten/WebGL2, load GLES3 function pointers via SDL_GL_GetProcAddress.
+GLboolean gl3stubInit() {
+    #define FIND_PROC(s) s = (void*)SDL_GL_GetProcAddress(#s)
+    FIND_PROC(glReadBuffer);
+    FIND_PROC(glDrawRangeElements);
+    FIND_PROC(glTexImage3D);
+    FIND_PROC(glTexSubImage3D);
+    FIND_PROC(glCopyTexSubImage3D);
+    FIND_PROC(glCompressedTexImage3D);
+    FIND_PROC(glCompressedTexSubImage3D);
+    FIND_PROC(glGenQueries);
+    FIND_PROC(glDeleteQueries);
+    FIND_PROC(glIsQuery);
+    FIND_PROC(glBeginQuery);
+    FIND_PROC(glEndQuery);
+    FIND_PROC(glGetQueryiv);
+    FIND_PROC(glGetQueryObjectuiv);
+    glQueryCounter = (void*)SDL_GL_GetProcAddress("glQueryCounterEXT");
+    glGetQueryObjecti64v = (void*)SDL_GL_GetProcAddress("glGetQueryObjecti64vEXT");
+    glGetQueryObjectui64v = (void*)SDL_GL_GetProcAddress("glGetQueryObjectui64vEXT");
+    FIND_PROC(glUnmapBuffer);
+    FIND_PROC(glGetBufferPointerv);
+    FIND_PROC(glDrawBuffers);
+    FIND_PROC(glUniformMatrix2x3fv);
+    FIND_PROC(glUniformMatrix3x2fv);
+    FIND_PROC(glUniformMatrix2x4fv);
+    FIND_PROC(glUniformMatrix4x2fv);
+    FIND_PROC(glUniformMatrix3x4fv);
+    FIND_PROC(glUniformMatrix4x3fv);
+    FIND_PROC(glBlitFramebuffer);
+    FIND_PROC(glRenderbufferStorageMultisample);
+    FIND_PROC(glFramebufferTextureLayer);
+    FIND_PROC(glMapBufferRange);
+    FIND_PROC(glFlushMappedBufferRange);
+    FIND_PROC(glBindVertexArray);
+    FIND_PROC(glDeleteVertexArrays);
+    FIND_PROC(glGenVertexArrays);
+    FIND_PROC(glIsVertexArray);
+    FIND_PROC(glGetIntegeri_v);
+    FIND_PROC(glBeginTransformFeedback);
+    FIND_PROC(glEndTransformFeedback);
+    FIND_PROC(glBindBufferRange);
+    FIND_PROC(glBindBufferBase);
+    FIND_PROC(glTransformFeedbackVaryings);
+    FIND_PROC(glGetTransformFeedbackVarying);
+    FIND_PROC(glVertexAttribIPointer);
+    FIND_PROC(glGetVertexAttribIiv);
+    FIND_PROC(glGetVertexAttribIuiv);
+    FIND_PROC(glVertexAttribI4i);
+    FIND_PROC(glVertexAttribI4ui);
+    FIND_PROC(glVertexAttribI4iv);
+    FIND_PROC(glVertexAttribI4uiv);
+    FIND_PROC(glGetUniformuiv);
+    FIND_PROC(glGetFragDataLocation);
+    FIND_PROC(glUniform1ui);
+    FIND_PROC(glUniform2ui);
+    FIND_PROC(glUniform3ui);
+    FIND_PROC(glUniform4ui);
+    FIND_PROC(glUniform1uiv);
+    FIND_PROC(glUniform2uiv);
+    FIND_PROC(glUniform3uiv);
+    FIND_PROC(glUniform4uiv);
+    FIND_PROC(glClearBufferiv);
+    FIND_PROC(glClearBufferuiv);
+    FIND_PROC(glClearBufferfv);
+    FIND_PROC(glClearBufferfi);
+    FIND_PROC(glGetStringi);
+    FIND_PROC(glCopyBufferSubData);
+    FIND_PROC(glGetUniformIndices);
+    FIND_PROC(glGetActiveUniformsiv);
+    FIND_PROC(glGetUniformBlockIndex);
+    FIND_PROC(glGetActiveUniformBlockiv);
+    FIND_PROC(glGetActiveUniformBlockName);
+    FIND_PROC(glUniformBlockBinding);
+    FIND_PROC(glDrawArraysInstanced);
+    FIND_PROC(glDrawElementsInstanced);
+    FIND_PROC(glFenceSync);
+    FIND_PROC(glIsSync);
+    FIND_PROC(glDeleteSync);
+    FIND_PROC(glClientWaitSync);
+    FIND_PROC(glWaitSync);
+    FIND_PROC(glGetInteger64v);
+    FIND_PROC(glGetSynciv);
+    FIND_PROC(glGetInteger64i_v);
+    FIND_PROC(glGetBufferParameteri64v);
+    FIND_PROC(glGenSamplers);
+    FIND_PROC(glDeleteSamplers);
+    FIND_PROC(glIsSampler);
+    FIND_PROC(glBindSampler);
+    FIND_PROC(glSamplerParameteri);
+    FIND_PROC(glSamplerParameteriv);
+    FIND_PROC(glSamplerParameterf);
+    FIND_PROC(glSamplerParameterfv);
+    FIND_PROC(glGetSamplerParameteriv);
+    FIND_PROC(glGetSamplerParameterfv);
+    FIND_PROC(glVertexAttribDivisor);
+    FIND_PROC(glBindTransformFeedback);
+    FIND_PROC(glDeleteTransformFeedbacks);
+    FIND_PROC(glGenTransformFeedbacks);
+    FIND_PROC(glIsTransformFeedback);
+    FIND_PROC(glPauseTransformFeedback);
+    FIND_PROC(glResumeTransformFeedback);
+    FIND_PROC(glGetProgramBinary);
+    FIND_PROC(glProgramBinary);
+    FIND_PROC(glProgramParameteri);
+    FIND_PROC(glInvalidateFramebuffer);
+    FIND_PROC(glInvalidateSubFramebuffer);
+    FIND_PROC(glTexStorage2D);
+    FIND_PROC(glTexStorage3D);
+    FIND_PROC(glGetInternalformativ);
+    /* EXT_blend_func_extended */
+    FIND_PROC(glBindFragDataLocationIndexedEXT);
+    FIND_PROC(glBindFragDataLocationEXT);
+    FIND_PROC(glGetProgramResourceLocationIndexEXT);
+    FIND_PROC(glGetFragDataIndexEXT);
+    /* EXT_buffer_storage */
+    FIND_PROC(glBufferStorageEXT);
+    /* OES_copy_image */
+    FIND_PROC(glCopyImageSubDataOES);
+    #undef FIND_PROC
+    // On Emscripten, always return GL_TRUE even if some extensions are unavailable.
+    // Core WebGL2 functions must be present; optional EXT functions may be null.
+    return GL_TRUE;
+}
+#else
+
 #include "EGL/egl.h"
 
 GLboolean gl3stubInit() {
@@ -259,6 +388,7 @@ GLboolean gl3stubInit() {
 
     return GL_TRUE;
 }
+#endif // !__EMSCRIPTEN__
 
 /* Function pointer definitions */
 GL_APICALL void           (* GL_APIENTRY glReadBuffer) (GLenum mode);
