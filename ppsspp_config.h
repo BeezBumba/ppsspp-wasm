@@ -8,7 +8,10 @@
 #define PPSSPP_API(PPSSPP_FEATURE) (PPSSPP_API_##PPSSPP_FEATURE)
 
 // ARCH defines
-#if defined(_M_IX86) || defined(__i386__) || defined (__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
+    #define PPSSPP_ARCH_32BIT 1
+    #define PPSSPP_PLATFORM_EMSCRIPTEN 1
+#elif defined(_M_IX86) || defined(__i386__)
     #define PPSSPP_ARCH_X86 1
     #define PPSSPP_ARCH_32BIT 1
     #define PPSSPP_ARCH_SSE2 1

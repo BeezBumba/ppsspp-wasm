@@ -302,7 +302,9 @@ void EGL_Close() {
 bool SDLGLGraphicsContext::InitFromRenderThread(std::string *errorMessage) {
 	bool retval = GraphicsContext::InitFromRenderThread(errorMessage);
 	// HACK: Ensure that the swap interval is set after context creation (needed for kmsdrm)
+#if !defined(__EMSCRIPTEN__)
 	SDL_GL_SetSwapInterval(1);
+#endif
 	return retval;
 }
 
@@ -313,7 +315,12 @@ int SDLGLGraphicsContext::Init(SDL_Window *&window, int x, int y, int w, int h, 
 		int minor;
 	};
 	GLVersionPair attemptVersions[] = {
-#ifdef USING_GLES2
+#if defined(__EMSCRIPTEN__)
+		// WebGL2 exposes an OpenGL ES 3.0 style context.  Do not probe 3.2/3.1
+		// first: with OffscreenCanvas, failed retries can leave the HTML canvas
+		// transferred and make later getContext() attempts crash.
+		{3, 0},
+#elif defined(USING_GLES2)
 		{3, 2}, {3, 1}, {3, 0}, {2, 0},
 #else
 		{4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1}, {4, 0},
@@ -366,6 +373,12 @@ int SDLGLGraphicsContext::Init(SDL_Window *&window, int x, int y, int w, int h, 
 	}
 
 	if (glContext == nullptr) {
+#if defined(__EMSCRIPTEN__)
+		NativeShutdown();
+		fprintf(stderr, "SDL_GL_CreateContext failed for WebGL2/GLES 3.0: %s\n", SDL_GetError());
+		SDL_Quit();
+		return 2;
+#else
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -387,6 +400,7 @@ int SDLGLGraphicsContext::Init(SDL_Window *&window, int x, int y, int w, int h, 
 			SDL_Quit();
 			return 2;
 		}
+#endif
 	}
 
 	// At this point, we have a window that we can show finally.

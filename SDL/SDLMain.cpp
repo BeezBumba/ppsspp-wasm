@@ -26,6 +26,10 @@ SDLJoystick *joystick = NULL;
 #include <thread>
 #include <locale>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 #include "ext/portable-file-dialogs/portable-file-dialogs.h"
 
 #include "ext/imgui/imgui.h"
@@ -67,11 +71,13 @@ SDLJoystick *joystick = NULL;
 #include "Core/Config.h"
 #include "Core/ConfigValues.h"
 #include "SDLGLGraphicsContext.h"
+#if defined(PPSSPP_SDL_HAS_VULKAN)
 #include "SDLVulkanGraphicsContext.h"
+#endif
 
 #if PPSSPP_PLATFORM(MAC)
 #include "SDL2/SDL_vulkan.h"
-#else
+#elif defined(PPSSPP_SDL_HAS_VULKAN)
 #include "SDL_vulkan.h"
 #endif
 
@@ -214,8 +220,10 @@ static void UpdateScreenDPI(SDL_Window *window) {
 
 	if (g_Config.iGPUBackend == (int)GPUBackend::OPENGL)
 		SDL_GL_GetDrawableSize(window, &drawable_width, NULL);
+#if defined(PPSSPP_SDL_HAS_VULKAN)
 	else if (g_Config.iGPUBackend == (int)GPUBackend::VULKAN)
 		SDL_Vulkan_GetDrawableSize(window, &drawable_width, NULL);
+#endif
 	else {
 		// If we add SDL support for more platforms, we'll end up here.
 		g_DesktopDPI = 1.0f;
@@ -870,17 +878,26 @@ static void EmuThreadFunc(GraphicsContext *graphicsContext) {
 }
 
 static void EmuThreadStart(GraphicsContext *context) {
+#ifdef __EMSCRIPTEN__
+	emuThreadState = (int)EmuThreadState::DISABLED;
+#else
 	emuThreadState = (int)EmuThreadState::START_REQUESTED;
 	emuThread = std::thread(&EmuThreadFunc, context);
+#endif
 }
 
 static void EmuThreadStop(const char *reason) {
+	if (emuThreadState == (int)EmuThreadState::DISABLED) {
+		return;
+	}
 	emuThreadState = (int)EmuThreadState::QUIT_REQUESTED;
 }
 
 static void EmuThreadJoin() {
-	emuThread.join();
-	emuThread = std::thread();
+	if (emuThread.joinable()) {
+		emuThread.join();
+		emuThread = std::thread();
+	}
 }
 
 struct InputStateTracker {
@@ -1454,12 +1471,14 @@ int main(int argc, char *argv[]) {
 #endif
 
 	bool vulkanMayBeAvailable = false;
+#if defined(PPSSPP_SDL_HAS_VULKAN)
 	if (VulkanMayBeAvailable()) {
 		fprintf(stderr, "DEBUG: Vulkan might be available.\n");
 		vulkanMayBeAvailable = true;
 	} else {
 		fprintf(stderr, "DEBUG: Vulkan is not available, not using Vulkan.\n");
 	}
+#endif
 
 	SDL_version compiled;
 	SDL_version linked;
@@ -1686,6 +1705,7 @@ int main(int argc, char *argv[]) {
 	if (g_Config.iGPUBackend == (int)GPUBackend::OPENGL) {
 		SDLGLGraphicsContext *glctx = new SDLGLGraphicsContext();
 		if (glctx->Init(window, x, y, w, h, mode, &error_message, force_gl_version) != 0) {
+#if defined(PPSSPP_SDL_HAS_VULKAN)
 			// Let's try the fallback once per process run.
 			fprintf(stderr, "GL init error '%s' - falling back to Vulkan\n", error_message.c_str());
 			g_Config.iGPUBackend = (int)GPUBackend::VULKAN;
@@ -1699,10 +1719,14 @@ int main(int argc, char *argv[]) {
 				return 1;
 			}
 			graphicsContext = vkctx;
+#else
+			fprintf(stderr, "GL init error '%s'\n", error_message.c_str());
+			return 1;
+#endif
 		} else {
 			graphicsContext = glctx;
 		}
-#if !PPSSPP_PLATFORM(SWITCH)
+#if !PPSSPP_PLATFORM(SWITCH) && defined(PPSSPP_SDL_HAS_VULKAN)
 	} else if (g_Config.iGPUBackend == (int)GPUBackend::VULKAN) {
 		SDLVulkanGraphicsContext *vkctx = new SDLVulkanGraphicsContext();
 		if (!vkctx->Init(window, x, y, w, h, mode | SDL_WINDOW_VULKAN, &error_message)) {
@@ -1785,6 +1809,9 @@ int main(int argc, char *argv[]) {
 	EnableFZ();
 
 	EmuThreadStart(graphicsContext);
+	if (emuThreadState == (int)EmuThreadState::DISABLED) {
+		NativeInitGraphics(graphicsContext);
+	}
 
 	graphicsContext->ThreadStart();
 
@@ -1836,7 +1863,46 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-	} else while (true) {
+	} else {
+#ifdef __EMSCRIPTEN__
+		struct MainLoopState {
+			SDL_Window *window;
+			GraphicsContext *graphicsContext;
+			InputStateTracker inputTracker;
+		};
+
+		MainLoopState *loopState = new MainLoopState{window, graphicsContext, {}};
+		emscripten_set_main_loop_arg([](void *arg) {
+			MainLoopState *state = (MainLoopState *)arg;
+			{
+				SDL_Event event;
+				while (SDL_PollEvent(&event)) {
+					ProcessSDLEvent(state->window, event, &state->inputTracker);
+				}
+			}
+			if (g_QuitRequested || g_RestartRequested) {
+				emscripten_cancel_main_loop();
+				return;
+			}
+			UpdateTextFocus();
+			UpdateSDLCursor();
+
+			state->inputTracker.MouseCaptureControl();
+
+			if (emuThreadState == (int)EmuThreadState::DISABLED) {
+				NativeFrame(state->graphicsContext);
+				state->graphicsContext->ThreadFrame(false);
+			}
+
+			{
+				std::lock_guard<std::mutex> guard(g_mutexWindow);
+				if (g_windowState.update) {
+					UpdateWindowState(state->window);
+				}
+			}
+		}, loopState, 0, true);
+#else
+		while (true) {
 		{
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
@@ -1897,6 +1963,8 @@ int main(int argc, char *argv[]) {
 			EmuThreadStart(graphicsContext);
 			graphicsContext->ThreadStart();
 		}
+	}
+#endif
 	}
 
 	EmuThreadStop("shutdown");

@@ -96,11 +96,16 @@ static bool UpdateInstanceCounter(void (*callback)(volatile InstanceInfo *)) {
 	}
 
 	bool result = false;
+#ifdef __EMSCRIPTEN__
+	callback(buf);
+	result = true;
+#else
 	if (mlock(buf, BUF_SIZE) == 0) {
 		callback(buf);
 		munlock(buf, BUF_SIZE);
 		result = true;
 	}
+#endif
 
 	munmap(buf, BUF_SIZE);
 	return result;

@@ -7,11 +7,14 @@ if(GIT_FOUND AND EXISTS "${SOURCE_DIR}/.git/")
 	execute_process(COMMAND ${GIT_EXECUTABLE} describe --always
 		WORKING_DIRECTORY ${SOURCE_DIR}
 		RESULT_VARIABLE exit_code
-		OUTPUT_VARIABLE GIT_VERSION)
+		OUTPUT_VARIABLE GIT_VERSION_OUTPUT
+		ERROR_QUIET)
 	if(NOT ${exit_code} EQUAL 0)
 		message(WARNING "git describe failed, unable to include version.")
+	else()
+		set(GIT_VERSION "${GIT_VERSION_OUTPUT}")
 	endif()
-	string(STRIP ${GIT_VERSION} GIT_VERSION)
+	string(STRIP "${GIT_VERSION}" GIT_VERSION)
 else()
 	message(WARNING "git not found, unable to include version.")
 endif()
