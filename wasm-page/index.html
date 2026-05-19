@@ -586,7 +586,7 @@
     <aside>
       <div class="status-bar">
         <div class="status-dot" id="statusDot"></div>
-        <span id="statusText">Ready. Open a ROM or launch the UI.</span>
+        <span id="statusText">Ready. Open a ROM or use Library.</span>
       </div>
 
       <div class="tabs">
@@ -2527,7 +2527,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
         }],
         onRuntimeInitialized() {
           log("Runtime initialized.", "ok");
-          setStatus(gameArg ? "Runtime ready \u2014 launching game\u2026" : "Runtime ready \u2014 launching UI\u2026", "ok");
+          setStatus(gameArg ? "Game running" : "Library ready", "ok");
           hideLoading();
           // Show runtime ISO loader button
           document.getElementById("runtimeIsoLabel").style.display = "";
@@ -2535,6 +2535,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
           startAutoPersist();
           updateStorageInfo();
           refreshLibrary();
+          setTimeout(() => setStatus(gameArg ? "Game running" : "Library ready", "ok"), 600);
           setTimeout(describeAudio, 1000);
           setInterval(reportAudioStatus, 5000);
           setInterval(updateInfoPanel,   2000);
@@ -2564,7 +2565,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       const textNode = fileLabel.firstChild;
       if (textNode && textNode.nodeType === 3)
         textNode.textContent = (selectedGame ? "\uD83D\uDCC2 " + selectedGame.name : "\uD83D\uDCC2 Open ROM") + " ";
-      setStatus(selectedGame ? "Selected: " + selectedGame.name : "Ready. Open a ROM or launch the UI.");
+      setStatus(selectedGame ? "Selected: " + selectedGame.name : "Ready. Open a ROM or use Library.");
     });
 
     startBtn.addEventListener("click", start);
