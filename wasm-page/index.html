@@ -2493,9 +2493,16 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     }
 
     async function unlockAudio() {
+      // Collect ALL known contexts: SDL's + any tracked
       const sdlCtx = window.Module?.SDL2?.audioContext;
-      const all    = sdlCtx ? [sdlCtx] : [...trackedAudioContexts];
-      for (const ctx of all) if (ctx?.state === "suspended") try { await ctx.resume(); } catch(e) {}
+      const all = [...trackedAudioContexts];
+      if (sdlCtx && !all.includes(sdlCtx)) all.push(sdlCtx);
+      for (const ctx of all) {
+        if (!ctx || ctx.state === 'closed') continue;
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+          try { await ctx.resume(); } catch(e) {}
+        }
+      }
     }
 
     function playWebAudioTone(ctx) {
@@ -2530,6 +2537,181 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     }
 
     installAudioContextTracking();
+
+    /* ── ScriptProcessor → AudioWorklet polyfill (Chrome 126+ compat) ── */
+    /* Chrome removed createScriptProcessor; SDL's WASM backend uses it.  */
+    /* We intercept the call and replace it with an AudioWorkletNode.     */
+    const SP_SHIM_WORKLET = `
+class PPSSPPSpShim extends AudioWorkletProcessor {
+  constructor(opts) {
+    super(opts);
+    this._nCh = (opts.processorOptions && opts.processorOptions.channels) || 2;
+    this._cap  = 32768;
+    this._buf  = new Float32Array(this._cap * this._nCh);
+    this._r = 0; this._w = 0;
+    this.port.onmessage = (e) => {
+      if (!e.data || e.data.type !== 'push') return;
+      const src = e.data.buf;
+      const frames = (src.length / this._nCh) | 0;
+      let w = this._w;
+      for (let i = 0; i < frames; i++) {
+        for (let c = 0; c < this._nCh; c++)
+          this._buf[(w * this._nCh) + c] = src[i * this._nCh + c];
+        w = (w + 1) % this._cap;
+      }
+      this._w = w;
+    };
+  }
+  process(inputs, outputs) {
+    const ch = outputs[0];
+    if (!ch || !ch[0]) return true;
+    const n = ch[0].length;
+    let r = this._r;
+    const w = this._w;
+    const avail = (w - r + this._cap) % this._cap;
+    const read = Math.min(n, avail);
+    for (let i = 0; i < read; i++) {
+      for (let c = 0; c < ch.length; c++)
+        ch[c][i] = this._buf[(r * this._nCh) + Math.min(c, this._nCh - 1)];
+      r = (r + 1) % this._cap;
+    }
+    for (let i = read; i < n; i++) { for (let c = 0; c < ch.length; c++) ch[c][i] = 0; }
+    this._r = r;
+    return true;
+  }
+}
+registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
+`;
+
+    const _spModuleCtxSet = new WeakSet();
+    const _spModulePending = new WeakMap(); // ctx → Promise
+
+    async function ensureSpShimModule(ctx) {
+      if (_spModuleCtxSet.has(ctx)) return true;
+      if (_spModulePending.has(ctx)) return _spModulePending.get(ctx);
+      const p = (async () => {
+        try {
+          const blob = new Blob([SP_SHIM_WORKLET], { type: 'application/javascript' });
+          const url  = URL.createObjectURL(blob);
+          await ctx.audioWorklet.addModule(url);
+          URL.revokeObjectURL(url);
+          _spModuleCtxSet.add(ctx);
+          log('AUDIO: SP→Worklet shim module registered on context.', 'ok');
+          return true;
+        } catch(e) {
+          log('AUDIO: SP shim module failed: ' + (e?.message || e), 'warn');
+          return false;
+        }
+      })();
+      _spModulePending.set(ctx, p);
+      return p;
+    }
+
+    function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
+      const nCh = Math.max(1, nOut || 2);
+      const bufsz = bufferSize || 4096;
+      const intervalMs = (bufsz / (ctx.sampleRate || 44100)) * 950; // 95% of buffer duration
+      let _handler     = null;
+      let _wn          = null; // AudioWorkletNode
+      let _gain        = null;
+      let _dest        = null;
+      let _timerId     = null;
+      let _fakeBuf     = null;
+      try { _fakeBuf = ctx.createBuffer(nCh, bufsz, ctx.sampleRate); } catch(e) {}
+
+      function pump() {
+        if (!_handler || !_fakeBuf || !_wn) return;
+        for (let c = 0; c < nCh; c++) _fakeBuf.getChannelData(c).fill(0);
+        try { _handler({ outputBuffer: _fakeBuf }); } catch(e) { return; }
+        // Pack interleaved and post to worklet (transferable → zero-copy)
+        const buf = new Float32Array(bufsz * nCh);
+        for (let i = 0; i < bufsz; i++)
+          for (let c = 0; c < nCh; c++)
+            buf[i * nCh + c] = _fakeBuf.getChannelData(c)[i];
+        _wn.port.postMessage({ type: 'push', buf }, [buf.buffer]);
+      }
+
+      function startPump() {
+        if (_timerId) return;
+        _timerId = setInterval(pump, intervalMs);
+        log('AUDIO: SP shim pump started (bufSz=' + bufsz + ', interval=' + intervalMs.toFixed(1) + 'ms, nCh=' + nCh + ').', 'ok');
+      }
+
+      function tryFinalize() {
+        if (!_wn || !_dest) return;
+        _gain = ctx.createGain();
+        _gain.gain.value = 1.0;
+        _wn.connect(_gain); _gain.connect(_dest);
+        startPump();
+        log('AUDIO: SP shim connected → AudioWorkletNode → destination.', 'ok');
+      }
+
+      // Async: load worklet module then create node
+      (async () => {
+        const ok = await ensureSpShimModule(ctx);
+        if (!ok) { log('AUDIO: SP shim init failed, audio may be silent.', 'warn'); return; }
+        try {
+          _wn = new AudioWorkletNode(ctx, 'ppsspp-sp-shim', {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [nCh],
+            processorOptions: { channels: nCh }
+          });
+          _wn.onprocessorerror = (e) => log('AUDIO: SP shim worklet error: ' + (e?.message || e), 'err');
+          tryFinalize();
+        } catch(e) { log('AUDIO: SP shim AudioWorkletNode error: ' + (e?.message || e), 'err'); }
+      })();
+
+      const shim = {
+        get onaudioprocess() { return _handler; },
+        set onaudioprocess(fn) { _handler = fn; },
+        connect(dest)    { _dest = dest; tryFinalize(); },
+        disconnect()     {
+          if (_timerId) { clearInterval(_timerId); _timerId = null; }
+          try { if (_gain) _gain.disconnect(); } catch(e) {}
+          try { if (_wn)   _wn.disconnect();   } catch(e) {}
+        },
+        // Required by SDL internals
+        addEventListener()    {},
+        removeEventListener() {},
+      };
+      return shim;
+    }
+
+    async function installScriptProcessorPolyfill(ctx) {
+      if (!ctx || !ctx.audioWorklet) {
+        log('AUDIO: AudioWorklet not available — ScriptProcessor polyfill skipped.', 'warn');
+        return;
+      }
+      // Pre-load the shim worklet module NOW (inside user gesture), so it's
+      // ready when SDL later calls createScriptProcessor synchronously.
+      await ensureSpShimModule(ctx);
+
+      // Patch AudioContext.prototype globally so SDL's internally-created
+      // contexts also benefit.
+      const proto = AudioContext.prototype;
+      if (proto._ppssppSpPatched) return;
+      proto._ppssppSpPatched = true;
+
+      const _origCreate = proto.createScriptProcessor;
+      proto.createScriptProcessor = function(bufSize, nIn, nOut) {
+        // Try native — if Chrome has removed it, this throws.
+        if (_origCreate) {
+          try {
+            const n = _origCreate.call(this, bufSize, nIn, nOut);
+            if (n) {
+              // Chrome may still return a node but onaudioprocess never fires.
+              // Detect removal by checking for the deprecated flag.
+              if (!navigator.userAgent.includes('Chrome') ||
+                  parseInt((navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1] || '0') < 126) {
+                return n; // Non-Chrome or old Chrome: use native
+              }
+            }
+          } catch(e) { /* Removed — fall through to shim */ }
+        }
+        log('AUDIO: createScriptProcessor → WorkletShim (bufSz=' + bufSize + ', nOut=' + nOut + ').', 'info');
+        return makeScriptProcessorShim(this, bufSize, nIn, nOut);
+      };
+      log('AUDIO: ScriptProcessor→AudioWorklet polyfill installed (Chrome compat).', 'ok');
+    }
 
     /* ── Gamepad ────────────────────────────────────────────────────── */
     const connectedGamepads = new Map();
@@ -3004,6 +3186,10 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
         preAudioCtx = new AudioContext({ sampleRate: 44100 });
         await preAudioCtx.resume();
         log("AUDIO: AudioContext pre-initialized for SDL (state=" + preAudioCtx.state + ", sr=" + preAudioCtx.sampleRate + ").", "ok");
+        // Install ScriptProcessor→AudioWorklet polyfill for Chrome 126+ compat.
+        // This MUST run inside the user gesture (button click) so the worklet
+        // module loads on the already-running AudioContext.
+        await installScriptProcessorPolyfill(preAudioCtx);
       } catch(e) { log("AUDIO: pre-init AudioContext failed: " + (e?.message || e), "warn"); }
 
       let gameArg = null;
@@ -3215,6 +3401,12 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
 
     window.addEventListener("pointerdown", () => { if (started) unlockAudio(); });
     window.addEventListener("keydown",      () => { if (started) unlockAudio(); });
+    // Re-resume AudioContext when the tab becomes visible again (Chrome suspends on tab-switch)
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && started) unlockAudio();
+    });
+    // Also resume on any focus event (covers tab-switching, alt-tab, etc.)
+    window.addEventListener("focus", () => { if (started) unlockAudio(); });
 
     // ── Fullscreen + cursor auto-hide ─────────────────────────────────
     let _fsCursorTimer = null;
