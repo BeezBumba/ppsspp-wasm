@@ -4,6 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>PPSSPP Web</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#00d4aa">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PPSSPP">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
   <style>
     :root {
       color-scheme: dark;
@@ -480,45 +491,81 @@
     #savesEmpty { padding: 24px 14px; color: var(--muted); font-size: 11.5px; text-align: center; line-height: 1.8; }
     #savesList { flex: 1; overflow-y: auto; padding: 8px 0;
       scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
-    .save-game-group { margin-bottom: 4px; }
-    .save-game-header {
+    /* ── Saves: section label ── */
+    .save-section-label {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 5px 12px 3px; gap: 8px;
-      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      padding: 6px 12px 3px; gap: 8px;
+      font-size: 9.5px; font-weight: 700; letter-spacing: .09em;
       text-transform: uppercase; color: var(--muted);
       border-bottom: 1px solid var(--border);
     }
-    .save-game-header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .save-game-header small { color: var(--info); flex-shrink: 0; font-size: 9.5px; }
-    .save-slot {
-      display: grid; grid-template-columns: 1fr auto auto;
-      align-items: center; gap: 4px 6px;
-      padding: 5px 12px; border-bottom: 1px solid rgba(30,39,48,.5);
-      transition: background .1s;
+    /* ── Save Data card (one per game slot) ── */
+    .save-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 12px 7px 8px;
+      border-bottom: 1px solid rgba(30,39,48,.5);
+      transition: background .12s;
     }
-    .save-slot:hover { background: var(--surface2); }
-    .save-slot-name {
-      font-size: 11px; color: var(--text);
+    .save-card:hover { background: var(--surface2); }
+    .save-card-thumb {
+      flex-shrink: 0; width: 72px; height: 40px;
+      border-radius: 3px; object-fit: cover; background: #111;
+      border: 1px solid var(--border);
+    }
+    .save-card-thumb-placeholder {
+      flex-shrink: 0; width: 72px; height: 40px;
+      border-radius: 3px; background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--muted);
+    }
+    .save-card-body { flex: 1; min-width: 0; }
+    .save-card-name {
+      font-size: 11.5px; font-weight: 600; color: var(--text);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .save-slot-meta {
-      grid-column: 1; font-size: 9.5px; color: var(--muted); margin-top: -2px;
+    .save-card-meta { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+    .save-card-files {
+      font-size: 9px; color: var(--border2); margin-top: 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .save-slot-actions { display: flex; gap: 3px; grid-row: 1 / 3; }
-    .save-slot-actions button {
+    .save-card-actions { display: flex; gap: 3px; flex-shrink: 0; }
+    .save-card-actions button {
       height: 24px; min-width: 24px; width: 24px; padding: 0;
       font-size: 12px; border-color: transparent; background: transparent;
     }
-    .save-slot-actions button:hover { background: var(--surface3); border-color: var(--border2); }
-    .save-slot-actions button.del:hover { background: rgba(255,95,95,.12); color: var(--danger); border-color: rgba(255,95,95,.3); }
-    .save-slot.has-thumb { grid-template-columns: 90px 1fr auto; }
-    .save-slot-thumb {
-      grid-row: 1 / 3; width: 90px; height: 51px; object-fit: cover;
-      border-radius: 3px; background: #111;
+    .save-card-actions button:hover { background: var(--surface3); border-color: var(--border2); }
+    .save-card-actions button.del:hover { background: rgba(255,95,95,.12); color: var(--danger); border-color: rgba(255,95,95,.3); }
+    /* ── Save States row (one per .ppst file) ── */
+    .save-state-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 12px 5px 10px;
+      border-bottom: 1px solid rgba(30,39,48,.4);
+      transition: background .12s;
     }
-    .save-slot.has-thumb .save-slot-name { grid-column: 2; }
-    .save-slot.has-thumb .save-slot-meta { grid-column: 2; }
-    .save-slot.has-thumb .save-slot-actions { grid-column: 3; }
+    .save-state-row:hover { background: var(--surface2); }
+    .save-state-thumb {
+      flex-shrink: 0; width: 64px; height: 36px;
+      border-radius: 2px; object-fit: cover; background: #111;
+      border: 1px solid var(--border);
+    }
+    .save-state-body { flex: 1; min-width: 0; }
+    .save-state-name {
+      font-size: 10.5px; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .save-state-meta { font-size: 9px; color: var(--muted); margin-top: 1px; }
+    .save-state-actions { display: flex; gap: 3px; flex-shrink: 0; }
+    .save-state-actions button {
+      height: 22px; min-width: 22px; width: 22px; padding: 0;
+      font-size: 11px; border-color: transparent; background: transparent;
+    }
+    .save-state-actions button:hover { background: var(--surface3); border-color: var(--border2); }
+    .save-state-actions button.del:hover { background: rgba(255,95,95,.12); color: var(--danger); border-color: rgba(255,95,95,.3); }
+    /* legacy -- keep for safety */
+    .save-game-group { margin-bottom: 4px; }
+    .save-game-header { display:none; }
+    .save-slot { display:none; }
     .saves-stats { padding: 6px 12px 4px; font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
     #opfsFileList { margin-top: 4px; flex: 1; overflow-y: auto;
       scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
@@ -814,6 +861,8 @@
     let _opfsRoot = null;
     let _detectedMemstick = null;
     let _lastPersistTime  = 0;
+    // path → "size:mtime" fingerprint of the last successfully persisted state
+    let _persistedFileState = new Map();
 
     function hasOPFS() {
       return !!navigator.storage?.getDirectory;
@@ -938,6 +987,23 @@
       }
       walk(root);
       return files;
+    }
+
+    // Walk FS collecting stat info only — no data read, very cheap
+    function fsStatDir(FS, root) {
+      const stats = new Map(); // path → {size, mtime}
+      function walk(dir) {
+        let entries; try { entries = FS.readdir(dir); } catch(e) { return; }
+        for (const name of entries) {
+          if (name === "." || name === "..") continue;
+          const full = dir + "/" + name;
+          let st; try { st = FS.stat(full); } catch(e) { continue; }
+          if      (FS.isDir(st.mode))  walk(full);
+          else if (FS.isFile(st.mode)) stats.set(full, { size: st.size, mtime: st.mtime });
+        }
+      }
+      walk(root);
+      return stats;
     }
 
     function fsMkdirP(FS, fullPath) {
@@ -1678,66 +1744,101 @@
         return;
       }
 
-      let totalSlots = 0, totalBytes = 0, html = "";
+      let totalSlots = 0, totalBytes = 0;
 
-      for (const { label, flat, slotDir, game, files } of slots) {
-        if (!files.length) continue;
-        const slotBytes = files.reduce((s, f) => s + f.size, 0);
-        totalSlots++;
-        totalBytes += slotBytes;
+      // Separate save data vs save states
+      const saveDataSlots  = slots.filter(s => !s.flat);
+      const saveStateSlots = slots.filter(s =>  s.flat);
 
-        html += `<div class="save-game-group">`;
-        html += `<div class="save-game-header">`;
-        html += `<span title="${esc(slotDir)}">[${esc(label)}] ${esc(game)}</span>`;
-        html += `<small>${formatBytes(slotBytes)}</small>`;
-        html += `</div>`;
+      let html = "";
 
-        // Pair data files with their thumbnails (same base name, different ext)
-        const pairMap = new Map();
-        for (const f of files) {
-          const dotIdx = f.name.lastIndexOf(".");
-          const base = dotIdx !== -1 ? f.name.slice(0, dotIdx) : f.name;
-          const ext  = dotIdx !== -1 ? f.name.slice(dotIdx + 1).toLowerCase() : "";
-          if (!pairMap.has(base)) pairMap.set(base, { base, dataFile: null, thumbFile: null, thumbExt: "" });
-          if (ext === "jpg" || ext === "png") {
-            pairMap.get(base).thumbFile = f;
-            pairMap.get(base).thumbExt  = ext;
+      /* ── Save Data section ── */
+      if (saveDataSlots.length) {
+        const sdBytes = saveDataSlots.reduce((s, sl) => s + sl.files.reduce((a, f) => a + f.size, 0), 0);
+        html += `<div class="save-section-label"><span>&#128190; Save Data</span><span>${saveDataSlots.length} slot${saveDataSlots.length !== 1 ? "s" : ""} · ${formatBytes(sdBytes)}</span></div>`;
+
+        for (const { slotDir, game, files, flat } of saveDataSlots) {
+          if (!files.length) continue;
+          const slotBytes = files.reduce((s, f) => s + f.size, 0);
+          totalSlots++; totalBytes += slotBytes;
+
+          // Pick best thumbnail: ICON0.PNG > PIC1.PNG > first .png > first .jpg
+          const byName = name => files.find(f => f.name.toUpperCase() === name);
+          const thumbFile = byName("ICON0.PNG") || byName("PIC1.PNG") ||
+                            files.find(f => /\.png$/i.test(f.name)) ||
+                            files.find(f => /\.jpg$/i.test(f.name));
+          const thumbExt  = thumbFile ? (thumbFile.name.split(".").pop() || "png") : "";
+          const thumbURL  = thumbFile?.data ? toDataURL(thumbFile.data, thumbExt) : null;
+
+          // Non-image files listed compactly
+          const dataFiles = files.filter(f => !/\.(png|jpg|jpeg|bmp)$/i.test(f.name));
+          const allPaths  = files.map(f => f.path);
+          const fileSummary = dataFiles.map(f => f.name).join(" · ");
+
+          const dlArgs = JSON.stringify(slotDir) + ", " + JSON.stringify(game) + ", " + JSON.stringify(flat);
+
+          html += `<div class="save-card">`;
+          if (thumbURL) {
+            html += `<img class="save-card-thumb" src="${thumbURL}" alt="cover" loading="lazy">`;
           } else {
-            pairMap.get(base).dataFile = f;
+            html += `<div class="save-card-thumb-placeholder">&#128190;</div>`;
           }
+          html += `<div class="save-card-body">`;
+          html += `<div class="save-card-name" title="${esc(slotDir)}">${esc(game)}</div>`;
+          html += `<div class="save-card-meta">${files.length} file${files.length !== 1 ? "s" : ""} &nbsp;·&nbsp; ${formatBytes(slotBytes)}</div>`;
+          if (fileSummary) html += `<div class="save-card-files" title="${esc(fileSummary)}">${esc(fileSummary)}</div>`;
+          html += `</div>`;
+          html += `<div class="save-card-actions">`;
+          html += `<button title="Download slot" onclick="downloadSaveSlot(${dlArgs})">&#11123;</button>`;
+          html += `<button class="del" title="Delete slot" onclick="deleteSaveSlot(${dlArgs})">&#128465;</button>`;
+          html += `</div>`;
+          html += `</div>`;
+        }
+      }
+
+      /* ── Save States section ── */
+      if (saveStateSlots.length) {
+        // Flatten all state files across game groups
+        const allStateFiles = [];
+        for (const { slotDir, game, files, flat } of saveStateSlots) {
+          for (const f of files) allStateFiles.push({ f, slotDir, game, flat });
+        }
+        const ssBytes = allStateFiles.reduce((s, { f }) => s + f.size, 0);
+        html += `<div class="save-section-label" style="margin-top:6px"><span>&#127918; Save States</span><span>${allStateFiles.length} state${allStateFiles.length !== 1 ? "s" : ""} · ${formatBytes(ssBytes)}</span></div>`;
+
+        // Pair .ppst/.sst with same-base .jpg thumbnail
+        const stateByBase = new Map(); // base → { dataFile, thumbFile, slotDir, game, flat }
+        for (const { f, slotDir, game, flat } of allStateFiles) {
+          const dot  = f.name.lastIndexOf(".");
+          const base = dot !== -1 ? f.name.slice(0, dot) : f.name;
+          const ext  = dot !== -1 ? f.name.slice(dot + 1).toLowerCase() : "";
+          if (!stateByBase.has(base)) stateByBase.set(base, { dataFile: null, thumbFile: null, slotDir, game, flat });
+          if (ext === "jpg" || ext === "png") stateByBase.get(base).thumbFile = f;
+          else stateByBase.get(base).dataFile = f;
         }
 
-        for (const { dataFile, thumbFile, thumbExt } of pairMap.values()) {
-          const main  = dataFile || thumbFile;
-          const allPaths = [
-            ...(dataFile  ? [dataFile.path]  : []),
-            ...(thumbFile ? [thumbFile.path] : []),
-          ];
-          const thumbURL = thumbFile?.data ? toDataURL(thumbFile.data, thumbExt) : null;
-          const displaySize = (dataFile?.size || 0) + (thumbFile?.size || 0);
-          html += `<div class="save-slot${thumbURL ? ' has-thumb' : ''}">`;
+        for (const { dataFile, thumbFile, slotDir, game, flat } of stateByBase.values()) {
+          const main = dataFile || thumbFile;
+          if (!main) continue;
+          totalSlots++; totalBytes += main.size + (thumbFile?.size || 0);
+          const thumbURL = thumbFile?.data ? toDataURL(thumbFile.data, "jpg") : null;
+          const allPaths = [main.path, ...(thumbFile && thumbFile !== main ? [thumbFile.path] : [])];
+          const slotLabel = main.name.replace(/\.[^.]+$/, "");
+
+          html += `<div class="save-state-row">`;
           if (thumbURL) {
-            html += `<img class="save-slot-thumb" src="${thumbURL}" alt="preview" loading="lazy">`;
+            html += `<img class="save-state-thumb" src="${thumbURL}" alt="preview" loading="lazy">`;
           }
-          html += `<div class="save-slot-name" title="${esc(main.path)}">${esc(main.name)}</div>`;
-          html += `<div class="save-slot-meta">${formatBytes(displaySize)}</div>`;
-          html += `<div class="save-slot-actions">`;
-          if (dataFile) {
-            html += `<button title="Download" onclick="downloadSaveFile(${JSON.stringify(dataFile.path)})">&#11123;</button>`;
-          }
+          html += `<div class="save-state-body">`;
+          html += `<div class="save-state-name" title="${esc(main.path)}">${esc(slotLabel)}</div>`;
+          html += `<div class="save-state-meta">${formatBytes(main.size)}</div>`;
+          html += `</div>`;
+          html += `<div class="save-state-actions">`;
+          if (dataFile) html += `<button title="Download" onclick="downloadSaveFile(${JSON.stringify(dataFile.path)})">&#11123;</button>`;
           html += `<button class="del" title="Delete" onclick="deleteSavePair(${JSON.stringify(allPaths)})">&#128465;</button>`;
           html += `</div>`;
           html += `</div>`;
         }
-
-        // Slot-level actions
-        // For flat slots (PPSSPP_STATE) slotDir is the parent dir — pass the game ID too
-        const dlArgs  = JSON.stringify(slotDir) + ", " + JSON.stringify(game) + ", " + JSON.stringify(flat);
-        html += `<div style="display:flex;gap:4px;padding:4px 12px 6px;">`;
-        html += `<button style="height:22px;font-size:10.5px;padding:0 8px" onclick="downloadSaveSlot(${dlArgs})">&#11123; Download</button>`;
-        html += `<button class="danger" style="height:22px;font-size:10.5px;padding:0 8px;margin-left:auto" onclick="deleteSaveSlot(${dlArgs})">&#128465; Delete</button>`;
-        html += `</div>`;
-        html += `</div>`;
       }
 
       empty.style.display = "none";
@@ -1886,6 +1987,11 @@
         }
         log("Persistence: restored " + ok + "/" + entries.length + " files from OPFS.", "ok");
         showToast("✓ Restored " + ok + " saved files");
+        // Seed dirty-tracking so the first auto-sync cycle is fully incremental
+        _detectedMemstick = detectMemstickDir(FS);
+        const initStats = fsStatDir(FS, _detectedMemstick);
+        for (const [path, { size, mtime }] of initStats)
+          _persistedFileState.set(path, size + ":" + mtime);
       } catch(e) { log("Persistence: OPFS load error: " + e.message, "warn"); }
     }
 
@@ -1946,18 +2052,55 @@
       }
     }
 
-    // Save config+saves from Emscripten FS to OPFS
+    // Save config+saves from Emscripten FS to OPFS — incremental (only changed/deleted files)
     async function persistFiles(FS, label) {
       _detectedMemstick = detectMemstickDir(FS);
-      const files = fsWalkDir(FS, _detectedMemstick);
-      if (!files.length) {
+      const currentStats = fsStatDir(FS, _detectedMemstick);
+
+      if (!currentStats.size) {
         log("Persistence" + (label ? " [" + label + "]" : "") + ": nothing at " + _detectedMemstick, "dim");
         updateStorageInfo(); return;
       }
+
+      // Collect files whose size or mtime has changed since last persist
+      const dirty = [];
+      for (const [path, { size, mtime }] of currentStats) {
+        const fp = size + ":" + mtime;
+        if (_persistedFileState.get(path) !== fp) dirty.push({ path, fp });
+      }
+
+      // Collect files that were persisted but no longer exist in FS
+      const deleted = [];
+      for (const path of _persistedFileState.keys()) {
+        if (!currentStats.has(path)) deleted.push(path);
+      }
+
+      if (!dirty.length && !deleted.length) {
+        log("Persistence [" + (label || "auto") + "]: up-to-date, nothing to sync.", "dim");
+        return;
+      }
+
+      let written = 0, removed = 0;
       try {
-        for (const { path, data } of files) await opfsPut(path, data);
+        for (const { path, fp } of dirty) {
+          try {
+            const data = FS.readFile(path);
+            await opfsPut(path, data);
+            _persistedFileState.set(path, fp);
+            written++;
+          } catch(e) { log("Persist write failed " + path + ": " + e.message, "warn"); }
+        }
+        for (const path of deleted) {
+          try { await opfsDelete(path); } catch(e) {}
+          _persistedFileState.delete(path);
+          removed++;
+        }
         _lastPersistTime = Date.now();
-        log("Persistence [" + (label || "manual") + "]: saved " + files.length + " files to OPFS.", "ok");
+        const parts = [];
+        if (written) parts.push(written + " written");
+        if (removed) parts.push(removed + " removed");
+        log("Persistence [" + (label || "manual") + "]: " + parts.join(", ") +
+            " of " + currentStats.size + " total files.", "ok");
         updateStorageInfo();
       } catch(e) { log("Persistence: OPFS write error: " + e.message, "warn"); }
     }
@@ -3109,6 +3252,23 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     refreshLibrary();
     updateStorageInfo();    // populate OPFS tab with stats on load
     refreshSavesTab();      // populate Saves tab from OPFS on load (no FS needed)
+
+    /* ── PWA: Service Worker registration ──────────────────────────── */
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js", { scope: "./" })
+        .then(reg => {
+          log("SW registered (scope: " + reg.scope + ")", "ok");
+          reg.addEventListener("updatefound", () => {
+            const sw = reg.installing;
+            sw?.addEventListener("statechange", () => {
+              if (sw.state === "installed" && navigator.serviceWorker.controller) {
+                showToast("🔄 Update available – reload to apply", 6000);
+              }
+            });
+          });
+        })
+        .catch(err => log("SW registration failed: " + err.message, "warn"));
+    }
   </script>
 </body>
 </html>
