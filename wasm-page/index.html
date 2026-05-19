@@ -329,6 +329,119 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #3a4f60; }
+
+    /* ── Toast ───────────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(12px);
+      background: var(--surface3); border: 1px solid var(--border2);
+      color: var(--text); font-size: 12.5px; padding: 8px 18px;
+      border-radius: 20px; box-shadow: var(--shadow);
+      opacity: 0; pointer-events: none; z-index: 9999;
+      transition: opacity .2s, transform .2s; white-space: nowrap;
+    }
+    #toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Storage panel ───────────────────────────────────────────────── */
+    #storagePanel {
+      padding: 12px 14px; font-size: 11.5px;
+      overflow-y: auto; flex: 1; color: var(--muted);
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .storage-actions { display: flex; flex-direction: column; gap: 6px; }
+    .storage-actions button,
+    .storage-actions label.btn {
+      width: 100%; justify-content: flex-start;
+      padding: 0 12px; height: 30px; font-size: 11.5px;
+    }
+    button.danger { border-color: rgba(255,95,95,.35); color: var(--danger); }
+    button.danger:hover { background: rgba(255,95,95,.1); border-color: var(--danger); }
+    #gamesList { color: var(--muted); font-size: 11px; line-height: 1.8; }
+    .game-entry { display: flex; justify-content: space-between; align-items: center; }
+    .game-entry span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+    .game-entry small { color: var(--muted); flex-shrink: 0; }
+
+    /* ── Saves tab ──────────────────────────────────────────────────── */
+    #savesPanel {
+      padding: 0; font-size: 11.5px;
+      overflow-y: auto; flex: 1;
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+      display: flex; flex-direction: column;
+    }
+    .saves-toolbar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .saves-toolbar button { height: 26px; font-size: 11px; padding: 0 9px; }
+    .saves-toolbar label.btn { height: 26px; font-size: 11px; padding: 0 9px; }
+    #savesEmpty { padding: 24px 14px; color: var(--muted); font-size: 11.5px; text-align: center; line-height: 1.8; }
+    #savesList { flex: 1; overflow-y: auto; padding: 8px 0;
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+    .save-game-group { margin-bottom: 4px; }
+    .save-game-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 12px 3px; gap: 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .save-game-header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .save-game-header small { color: var(--info); flex-shrink: 0; font-size: 9.5px; }
+    .save-slot {
+      display: grid; grid-template-columns: 1fr auto auto;
+      align-items: center; gap: 4px 6px;
+      padding: 5px 12px; border-bottom: 1px solid rgba(30,39,48,.5);
+      transition: background .1s;
+    }
+    .save-slot:hover { background: var(--surface2); }
+    .save-slot-name {
+      font-size: 11px; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .save-slot-meta {
+      grid-column: 1; font-size: 9.5px; color: var(--muted); margin-top: -2px;
+    }
+    .save-slot-actions { display: flex; gap: 3px; grid-row: 1 / 3; }
+    .save-slot-actions button {
+      height: 24px; min-width: 24px; width: 24px; padding: 0;
+      font-size: 12px; border-color: transparent; background: transparent;
+    }
+    .save-slot-actions button:hover { background: var(--surface3); border-color: var(--border2); }
+    .save-slot-actions button.del:hover { background: rgba(255,95,95,.12); color: var(--danger); border-color: rgba(255,95,95,.3); }
+    .save-slot.has-thumb { grid-template-columns: 90px 1fr auto; }
+    .save-slot-thumb {
+      grid-row: 1 / 3; width: 90px; height: 51px; object-fit: cover;
+      border-radius: 3px; background: #111;
+    }
+    .save-slot.has-thumb .save-slot-name { grid-column: 2; }
+    .save-slot.has-thumb .save-slot-meta { grid-column: 2; }
+    .save-slot.has-thumb .save-slot-actions { grid-column: 3; }
+    .saves-stats { padding: 6px 12px 4px; font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
+    #idbFileList { margin-top: 4px; flex: 1; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+    .idb-cat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 12px 3px; gap: 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border); border-top: 1px solid var(--border); margin-top: 4px;
+    }
+    .idb-file-row {
+      display: grid; grid-template-columns: 1fr auto auto;
+      align-items: center; gap: 4px 6px;
+      padding: 4px 12px; border-bottom: 1px solid rgba(30,39,48,.4);
+      font-size: 10.5px;
+    }
+    .idb-file-row:hover { background: var(--surface2); }
+    .idb-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .idb-file-size { font-size: 9.5px; color: var(--muted); flex-shrink: 0; }
+    .idb-file-actions { display: flex; gap: 3px; }
+    .idb-file-actions button {
+      height: 20px; min-width: 20px; width: 20px; padding: 0;
+      font-size: 11px; border-color: transparent; background: transparent;
+    }
+    .idb-file-actions button:hover { background: var(--surface3); border-color: var(--border2); }
+    .idb-file-actions button.del:hover { background: rgba(255,95,95,.12); color: var(--danger); border-color: rgba(255,95,95,.3); }
   </style>
 </head>
 <body>
@@ -346,10 +459,14 @@
 
     <div class="hbar-group">
       <label class="btn" id="fileLabel">
-        &#128194;<span class="btn-lbl"> Open ROM</span>
+        &#128194;<span class="btn-lbl"> Launch ROM</span>
         <input id="gameFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
       </label>
       <button id="startBtn" class="primary">&#9654;<span class="btn-lbl"> Launch</span></button>
+      <label class="btn" id="runtimeIsoLabel" style="display:none" title="Load ISO while running — then open from PPSSPP game browser">
+        &#128190;<span class="btn-lbl"> Load ISO</span>
+        <input id="runtimeIsoFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
+      </label>
     </div>
 
     <div class="hbar-sep"></div>
@@ -399,6 +516,8 @@
       <div class="tabs">
         <div class="tab active" data-tab="log">Console</div>
         <div class="tab"        data-tab="info">System</div>
+        <div class="tab"        data-tab="saves">&#128190; Saves</div>
+        <div class="tab"        data-tab="storage">&#128191; IDB</div>
       </div>
 
       <div class="tab-panel active" id="tabLog">
@@ -442,8 +561,55 @@
           </div>
         </div>
       </div>
+
+      <div class="tab-panel" id="tabSaves">
+        <div id="savesPanel">
+          <div class="saves-toolbar">
+            <button id="refreshSavesBtn">&#8635; Refresh</button>
+            <button id="exportAllSavesBtn">&#11123; Export All</button>
+            <label class="btn" id="importSaveSlotLabel" title="Import a single save slot folder (.ppsspp)">
+              &#11121; Import Slot
+              <input id="importSaveSlotFile" type="file" accept=".ppsspp,.json">
+            </label>
+            <button id="deleteAllSavesBtn" class="danger" style="margin-left:auto">&#128465; All</button>
+          </div>
+          <div id="savesEmpty">Start PPSSPP and play a game,<br>then click Refresh to see your saves.</div>
+          <div id="savesList" style="display:none"></div>
+          <div class="saves-stats" id="savesStats"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabStorage">
+        <div id="storagePanel">
+          <div class="info-group">
+            <h3>IndexedDB Persistence</h3>
+            <div class="info-row"><span class="info-key">Saved Files</span>  <span class="info-val" id="iStorageFiles">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Total Size</span>   <span class="info-val" id="iStorageSize">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Last Sync</span>    <span class="info-val" id="iLastSync">Never</span></div>
+            <div class="info-row"><span class="info-key">Auto-sync</span>    <span class="info-val good">Every 30 s</span></div>
+            <div class="info-row"><span class="info-key">Persist Path</span> <span class="info-val" id="iMemstickPath" style="font-size:10px;word-break:break-all">&#8212;</span></div>
+          </div>
+          <div class="storage-actions">
+            <button id="syncNowBtn">&#128190; Save Now (sync to IDB)</button>
+            <button id="exportSavesBtn">&#11123; Export Saves (.ppsspp)</button>
+            <label class="btn" id="importSavesLabel" style="width:100%;justify-content:flex-start;padding:0 12px;height:30px;font-size:11.5px">
+              &#11121; Import Saves (.ppsspp)
+              <input id="importSavesFile" type="file" accept=".ppsspp,.json">
+            </label>
+            <button id="clearStorageBtn" class="danger">&#128465; Clear All Saved Data</button>
+          </div>
+          <div class="info-group">
+            <h3>Games in /games</h3>
+            <div id="gamesList" style="color:var(--muted);font-size:11px;line-height:1.8">None loaded</div>
+          </div>
+        </div>
+        <div style="padding:4px 12px 2px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);margin-top:2px">Persisted Files</div>
+        <div id="idbFileList"><span style="padding:8px 12px;color:var(--muted);font-size:11px;display:block">Loading…</span></div>
+      </div>
     </aside>
   </div>
+
+  <div id="toast"></div>
 
   <script>
     /* ── Constants ──────────────────────────────────────────────────── */
@@ -453,6 +619,12 @@
     const MANIFEST         = "assets-manifest.txt";
     const VIRTUAL_ASSETS   = "/emsdk/upstream/emscripten/cache/sysroot/share/ppsspp/assets";
     const VIRTUAL_GAME_DIR = "/games";
+
+    // Persistence: PPSSPP writes config+saves to $HOME/.config/ppsspp/ on Linux/Emscripten
+    const PERSIST_ROOTS       = ["/home/web_user/.config/ppsspp", "/root/.config/ppsspp"];
+    const IDB_DB_NAME         = "ppsspp_persist";
+    const IDB_STORE_NAME      = "files";
+    const PERSIST_SYNC_MS     = 30000; // auto-sync every 30 s
 
     /* ── DOM refs ───────────────────────────────────────────────────── */
     const canvas          = document.getElementById("canvas");
@@ -492,6 +664,663 @@
       pushes: 0, pushNonsilent: 0, pushPeak: 0,
       workletPeak: 0, workletTotal: 0, ringDropped: 0, fallbackPeak: 0, fallbackDropped: 0,
     };
+
+    /* ── Toast ──────────────────────────────────────────────────────── */
+    const toastEl = document.getElementById("toast");
+    function showToast(msg, ms = 3200) {
+      toastEl.textContent = msg;
+      toastEl.classList.add("visible");
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(() => toastEl.classList.remove("visible"), ms);
+    }
+
+    /* ── IndexedDB Persistence ──────────────────────────────────────── */
+    let _idb = null;
+    let _detectedMemstick = null;
+    let _lastPersistTime  = 0;
+
+    function openPersistDB() {
+      if (_idb) return Promise.resolve(_idb);
+      return new Promise((res, rej) => {
+        const req = indexedDB.open(IDB_DB_NAME, 1);
+        req.onupgradeneeded = e => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(IDB_STORE_NAME))
+            db.createObjectStore(IDB_STORE_NAME, { keyPath: "path" });
+        };
+        req.onsuccess = e => { _idb = e.target.result; res(_idb); };
+        req.onerror   = e => rej(e.target.error);
+      });
+    }
+
+    async function idbPut(path, data) {
+      const db  = await openPersistDB();
+      return new Promise((res, rej) => {
+        const tx  = db.transaction(IDB_STORE_NAME, "readwrite");
+        const req = tx.objectStore(IDB_STORE_NAME).put({ path, data });
+        req.onsuccess = () => res();
+        req.onerror   = e  => rej(e.target.error);
+      });
+    }
+
+    async function idbGetAll() {
+      const db = await openPersistDB();
+      return new Promise((res, rej) => {
+        const req = db.transaction(IDB_STORE_NAME, "readonly").objectStore(IDB_STORE_NAME).getAll();
+        req.onsuccess = e => res(e.target.result || []);
+        req.onerror   = e => rej(e.target.error);
+      });
+    }
+
+    async function idbClearAll() {
+      const db = await openPersistDB();
+      return new Promise((res, rej) => {
+        const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).clear();
+        req.onsuccess = () => res();
+        req.onerror   = e  => rej(e.target.error);
+      });
+    }
+
+    // Walk Emscripten FS recursively from root, return [{path, data}]
+    function fsWalkDir(FS, root) {
+      const files = [];
+      function walk(dir) {
+        let entries; try { entries = FS.readdir(dir); } catch(e) { return; }
+        for (const name of entries) {
+          if (name === "." || name === "..") continue;
+          const full = dir + "/" + name;
+          let stat; try { stat = FS.stat(full); } catch(e) { continue; }
+          if      (FS.isDir(stat.mode))  walk(full);
+          else if (FS.isFile(stat.mode)) {
+            try { files.push({ path: full, data: FS.readFile(full) }); } catch(e) {}
+          }
+        }
+      }
+      walk(root);
+      return files;
+    }
+
+    function fsMkdirP(FS, fullPath) {
+      const parts = fullPath.split("/").filter(Boolean);
+      let cur = "";
+      for (const p of parts) {
+        cur += "/" + p;
+        try { FS.mkdir(cur); } catch(e) {}
+      }
+    }
+
+    function detectMemstickDir(FS) {
+      for (const root of PERSIST_ROOTS) {
+        try { if (FS.analyzePath(root).exists) return root; } catch(e) {}
+      }
+      return PERSIST_ROOTS[0]; // default — PPSSPP will create it on first run
+    }
+
+    function formatBytes(n) {
+      if (n < 1024)    return n + " B";
+      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+      return (n / 1048576).toFixed(1) + " MB";
+    }
+
+    // Categorize an IDB path for the file browser
+    function idbFileCategory(path) {
+      if (/\/PSP\/SAVEDATA\//i.test(path))     return "Save Data";
+      if (/\/PSP\/PPSSPP_STATE\//i.test(path)) return "Save States";
+      if (/\/PSP\/SYSTEM\//i.test(path))       return "System / Config";
+      if (/\/PSP\/GAME\//i.test(path))         return "Games (PSP)";
+      if (/\/PSP\/SCREENSHOT\//i.test(path))   return "Screenshots";
+      if (/\/PSP\/CHEATS\//i.test(path))       return "Cheats";
+      if (/\.ini$|config\.json$/i.test(path))  return "Config";
+      return "Other";
+    }
+
+    async function downloadIdbFile(path) {
+      try {
+        const db = await openPersistDB();
+        const entry = await new Promise((res, rej) => {
+          const req = db.transaction(IDB_STORE_NAME, "readonly").objectStore(IDB_STORE_NAME).get(path);
+          req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e.target.error);
+        });
+        if (!entry) { showToast("❌ Not found in IDB"); return; }
+        const name = path.split("/").pop();
+        const blob = new Blob([entry.data], { type: "application/octet-stream" });
+        const url  = URL.createObjectURL(blob);
+        Object.assign(document.createElement("a"), { href: url, download: name }).click();
+        URL.revokeObjectURL(url);
+        showToast("✓ Downloaded " + name);
+      } catch(e) { showToast("❌ " + e.message); }
+    }
+
+    async function deleteIdbFile(path) {
+      if (!confirm("Delete from IDB:\n" + path.split("/").pop() + "?")) return;
+      try {
+        const db = await openPersistDB();
+        await new Promise((res, rej) => {
+          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
+          req.onsuccess = () => res(); req.onerror = e => rej(e.target.error);
+        });
+      } catch(e) {}
+      if (window.FS) { try { window.FS.unlink(path); } catch(e) {} }
+      showToast("🗑 Deleted " + path.split("/").pop());
+      updateStorageInfo(); refreshSavesTab();
+    }
+
+    async function updateStorageInfo() {
+      try {
+        const entries = await idbGetAll();
+        const bytes   = entries.reduce((s, e) => s + (e.data?.byteLength || 0), 0);
+        const el = id => document.getElementById(id);
+        el("iStorageFiles").textContent = String(entries.length);
+        el("iStorageFiles").className   = entries.length ? "info-val good" : "info-val";
+        el("iStorageSize").textContent  = formatBytes(bytes);
+        el("iLastSync").textContent     = _lastPersistTime
+          ? new Date(_lastPersistTime).toLocaleTimeString() : "Never";
+        el("iMemstickPath").textContent = _detectedMemstick || PERSIST_ROOTS[0];
+
+        // Render grouped file browser
+        const listEl = document.getElementById("idbFileList");
+        if (listEl) {
+          if (!entries.length) {
+            listEl.innerHTML = `<span style="padding:8px 12px;color:var(--muted);font-size:11px;display:block">No files persisted yet.</span>`;
+          } else {
+            // Group by category
+            const cats = new Map();
+            for (const { path, data } of entries) {
+              const cat = idbFileCategory(path);
+              if (!cats.has(cat)) cats.set(cat, []);
+              cats.get(cat).push({ path, size: data?.byteLength || 0 });
+            }
+            // Sort categories: Config first, then alphabetical
+            const catOrder = ["Config", "System / Config", "Save States", "Save Data", "Screenshots", "Cheats", "Games (PSP)", "Other"];
+            const sorted = [...cats.entries()].sort((a, b) => {
+              const ai = catOrder.indexOf(a[0]); const bi = catOrder.indexOf(b[0]);
+              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+            });
+            let html = "";
+            for (const [cat, files] of sorted) {
+              const catBytes = files.reduce((s, f) => s + f.size, 0);
+              html += `<div class="idb-cat-header"><span>${esc(cat)} (${files.length})</span><span style="color:var(--info);font-size:9.5px">${formatBytes(catBytes)}</span></div>`;
+              for (const { path, size } of files.sort((a, b) => a.path.localeCompare(b.path))) {
+                const name = path.split("/").pop();
+                html += `<div class="idb-file-row">`;
+                html += `<div class="idb-file-name" title="${esc(path)}">${esc(name)}</div>`;
+                html += `<div class="idb-file-size">${formatBytes(size)}</div>`;
+                html += `<div class="idb-file-actions">`;
+                html += `<button title="Download" onclick="downloadIdbFile(${JSON.stringify(path)})">&#11123;</button>`;
+                html += `<button class="del" title="Delete" onclick="deleteIdbFile(${JSON.stringify(path)})">&#128465;</button>`;
+                html += `</div>`;
+                html += `</div>`;
+              }
+            }
+            listEl.innerHTML = html;
+          }
+        }
+      } catch(e) {}
+      refreshGamesList();
+    }
+
+    function refreshGamesList() {
+      const FS  = window.FS;
+      const el  = document.getElementById("gamesList");
+      if (!FS || !el) return;
+      try {
+        const entries = FS.readdir(VIRTUAL_GAME_DIR).filter(n => n !== "." && n !== "..");
+        if (!entries.length) { el.textContent = "None loaded"; return; }
+        el.innerHTML = entries.map(n => {
+          let size = "";
+          try { size = formatBytes(FS.stat(VIRTUAL_GAME_DIR + "/" + n).size); } catch(e) {}
+          return `<div class="game-entry"><span title="${n}">${n}</span><small>${size}</small></div>`;
+        }).join("");
+      } catch(e) { el.textContent = "None loaded"; }
+    }
+
+    // Convert binary data to a data: URL for inline display
+    function toDataURL(data, ext) {
+      try {
+        const mime = /png/i.test(ext) ? "image/png" : "image/jpeg";
+        const bytes = new Uint8Array(data);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return "data:" + mime + ";base64," + btoa(bin);
+      } catch(e) { return null; }
+    }
+
+    /* ── Saves Tab ──────────────────────────────────────────────────── */
+    // PSP save paths:
+    //   SAVEDATA    → <memstick>/PSP/SAVEDATA/<GAMEID_TITLE>/<files>   (subdir per game)
+    //   PPSSPP_STATE → <memstick>/PSP/PPSSPP_STATE/<GAMEID>_ver_slot.ext  (FLAT, no subdir)
+    const SAVE_SUBDIRS = [
+      { dir: "PSP/SAVEDATA",     flat: false, label: "Save Data"   },
+      { dir: "PSP/PPSSPP_STATE", flat: true,  label: "Save States" },
+    ];
+
+    function readSaveSlotFiles(FS, slotDir) {
+      // returns [{name, path, size}] for all files inside a slot directory
+      const files = [];
+      let entries;
+      try { entries = FS.readdir(slotDir); } catch(e) { return files; }
+      for (const name of entries) {
+        if (name === "." || name === "..") continue;
+        const full = slotDir + "/" + name;
+        try {
+          const st = FS.stat(full);
+          if (FS.isFile(st.mode)) files.push({ name, path: full, size: st.size });
+        } catch(e) {}
+      }
+      return files;
+    }
+
+    // Build a unified file map from IDB + live FS (FS takes priority as it's fresher)
+    async function buildSaveFileMap() {
+      const idbEntries = await idbGetAll();
+      const map = new Map(); // path → {path, data, size, fromIDB}
+      for (const { path, data } of idbEntries) {
+        map.set(path, { path, data, size: data?.byteLength || 0, fromIDB: true });
+      }
+      // Overlay with live FS if running (newer / authoritative)
+      const FS = window.FS;
+      if (FS) {
+        const memstick = _detectedMemstick || detectMemstickDir(FS);
+        const fsFiles  = fsWalkDir(FS, memstick);
+        for (const { path, data } of fsFiles) {
+          map.set(path, { path, data, size: data?.byteLength || 0, fromIDB: false });
+        }
+      }
+      return map;
+    }
+
+    // Extract game ID from a flat save-state filename like "ULES01384_1.00_0.ppst"
+    function gameIdFromStateFile(name) {
+      // format: <GAMEID>_<ver>_<slot>.<ext>
+      // GAMEID is everything up to the second-to-last underscore group
+      const m = name.match(/^([A-Z]{4}\d{5}(?:_\d+\.?\d*)?)/i);
+      return m ? m[1] : name.replace(/\.[^.]+$/, "");
+    }
+
+    // Group a flat file map into slots for display
+    function groupSavesBySlot(fileMap) {
+      const slots = new Map(); // key → { subdir, label, flat, slotDir, game, files[] }
+
+      for (const PERSIST_ROOT of PERSIST_ROOTS) {
+        for (const { dir, flat, label } of SAVE_SUBDIRS) {
+          const prefix = PERSIST_ROOT + "/" + dir + "/";
+
+          for (const [path, entry] of fileMap) {
+            if (!path.startsWith(prefix)) continue;
+            const rest = path.slice(prefix.length);
+
+            if (flat) {
+              // PPSSPP_STATE: files are flat — e.g. "ULES01384_1.00_0.ppst"
+              // rest has no slash (direct file in the dir)
+              if (rest.includes("/")) continue; // skip if nested (shouldn't happen)
+              const game    = gameIdFromStateFile(rest);
+              const slotDir = PERSIST_ROOT + "/" + dir; // the dir itself is the "slot"
+              const key     = dir + "\0" + game;
+              if (!slots.has(key)) slots.set(key, { dir, label, flat: true, slotDir, game, files: [] });
+              slots.get(key).files.push({ name: rest, path, size: entry.size, data: entry.data });
+            } else {
+              // SAVEDATA: <game>/<filename>
+              const slash = rest.indexOf("/");
+              if (slash === -1) continue; // bare file at subdir root, skip
+              const game = rest.slice(0, slash);
+              const name = rest.slice(slash + 1);
+              if (!name || name.includes("/")) continue;
+              const slotDir = PERSIST_ROOT + "/" + dir + "/" + game;
+              const key     = dir + "\0" + slotDir;
+              if (!slots.has(key)) slots.set(key, { dir, label, flat: false, slotDir, game, files: [] });
+              slots.get(key).files.push({ name, path, size: entry.size, data: entry.data });
+            }
+          }
+        }
+      }
+      return [...slots.values()];
+    }
+
+    async function refreshSavesTab() {
+      const empty  = document.getElementById("savesEmpty");
+      const list   = document.getElementById("savesList");
+      const stats  = document.getElementById("savesStats");
+      if (!empty || !list) return;
+
+      // Show spinner while loading
+      empty.style.display = "block";
+      empty.innerHTML = "<span style='color:var(--muted)'>Loading saves…</span>";
+      list.style.display = "none";
+
+      let fileMap;
+      try { fileMap = await buildSaveFileMap(); }
+      catch(e) { empty.innerHTML = "Error reading saves: " + esc(e.message); return; }
+
+      const slots = groupSavesBySlot(fileMap);
+      const fromFS  = !!window.FS;
+      const source  = fromFS ? "live FS + IDB" : "IndexedDB";
+
+      if (!slots.length) {
+        empty.style.display = "block";
+        empty.innerHTML = "No save data found in IndexedDB or FS.<br><small>Play a game, create a save, then sync.</small>";
+        list.style.display = "none";
+        if (stats) stats.textContent = "";
+        return;
+      }
+
+      let totalSlots = 0, totalBytes = 0, html = "";
+
+      for (const { label, flat, slotDir, game, files } of slots) {
+        if (!files.length) continue;
+        const slotBytes = files.reduce((s, f) => s + f.size, 0);
+        totalSlots++;
+        totalBytes += slotBytes;
+
+        html += `<div class="save-game-group">`;
+        html += `<div class="save-game-header">`;
+        html += `<span title="${esc(slotDir)}">[${esc(label)}] ${esc(game)}</span>`;
+        html += `<small>${formatBytes(slotBytes)}</small>`;
+        html += `</div>`;
+
+        // Pair data files with their thumbnails (same base name, different ext)
+        const pairMap = new Map();
+        for (const f of files) {
+          const dotIdx = f.name.lastIndexOf(".");
+          const base = dotIdx !== -1 ? f.name.slice(0, dotIdx) : f.name;
+          const ext  = dotIdx !== -1 ? f.name.slice(dotIdx + 1).toLowerCase() : "";
+          if (!pairMap.has(base)) pairMap.set(base, { base, dataFile: null, thumbFile: null, thumbExt: "" });
+          if (ext === "jpg" || ext === "png") {
+            pairMap.get(base).thumbFile = f;
+            pairMap.get(base).thumbExt  = ext;
+          } else {
+            pairMap.get(base).dataFile = f;
+          }
+        }
+
+        for (const { dataFile, thumbFile, thumbExt } of pairMap.values()) {
+          const main  = dataFile || thumbFile;
+          const allPaths = [
+            ...(dataFile  ? [dataFile.path]  : []),
+            ...(thumbFile ? [thumbFile.path] : []),
+          ];
+          const thumbURL = thumbFile?.data ? toDataURL(thumbFile.data, thumbExt) : null;
+          const displaySize = (dataFile?.size || 0) + (thumbFile?.size || 0);
+          html += `<div class="save-slot${thumbURL ? ' has-thumb' : ''}">`;
+          if (thumbURL) {
+            html += `<img class="save-slot-thumb" src="${thumbURL}" alt="preview" loading="lazy">`;
+          }
+          html += `<div class="save-slot-name" title="${esc(main.path)}">${esc(main.name)}</div>`;
+          html += `<div class="save-slot-meta">${formatBytes(displaySize)}</div>`;
+          html += `<div class="save-slot-actions">`;
+          if (dataFile) {
+            html += `<button title="Download" onclick="downloadSaveFile(${JSON.stringify(dataFile.path)})">&#11123;</button>`;
+          }
+          html += `<button class="del" title="Delete" onclick="deleteSavePair(${JSON.stringify(allPaths)})">&#128465;</button>`;
+          html += `</div>`;
+          html += `</div>`;
+        }
+
+        // Slot-level actions
+        // For flat slots (PPSSPP_STATE) slotDir is the parent dir — pass the game ID too
+        const dlArgs  = JSON.stringify(slotDir) + ", " + JSON.stringify(game) + ", " + JSON.stringify(flat);
+        html += `<div style="display:flex;gap:4px;padding:4px 12px 6px;">`;
+        html += `<button style="height:22px;font-size:10.5px;padding:0 8px" onclick="downloadSaveSlot(${dlArgs})">&#11123; Download</button>`;
+        html += `<button class="danger" style="height:22px;font-size:10.5px;padding:0 8px;margin-left:auto" onclick="deleteSaveSlot(${dlArgs})">&#128465; Delete</button>`;
+        html += `</div>`;
+        html += `</div>`;
+      }
+
+      empty.style.display = "none";
+      list.style.display  = "block";
+      list.innerHTML = html;
+      if (stats) stats.textContent =
+        totalSlots + " slot" + (totalSlots !== 1 ? "s" : "") +
+        " · " + formatBytes(totalBytes) +
+        " · source: " + source;
+    }
+
+    // Read file data from IDB first, fallback to FS
+    async function readSaveFileData(path) {
+      const FS = window.FS;
+      if (FS) { try { return FS.readFile(path); } catch(e) {} }
+      const db = await openPersistDB();
+      return new Promise((res, rej) => {
+        const req = db.transaction(IDB_STORE_NAME, "readonly").objectStore(IDB_STORE_NAME).get(path);
+        req.onsuccess = e => e.target.result ? res(e.target.result.data) : rej(new Error("Not found in IDB: " + path));
+        req.onerror   = e => rej(e.target.error);
+      });
+    }
+
+    async function downloadSaveFile(path) {
+      try {
+        const data = await readSaveFileData(path);
+        const name = path.split("/").pop();
+        const blob = new Blob([data], { type: "application/octet-stream" });
+        const url  = URL.createObjectURL(blob);
+        Object.assign(document.createElement("a"), { href: url, download: name }).click();
+        URL.revokeObjectURL(url);
+        showToast("✓ Downloaded " + name);
+      } catch(e) { showToast("❌ " + e.message); }
+    }
+
+    async function downloadSaveSlot(slotDir, gameName) {
+      // Collect all IDB entries for this slot
+      const all   = await idbGetAll();
+      const files = all.filter(e => e.path.startsWith(slotDir + "/"));
+      // Also grab any FS-only files not yet persisted
+      const FS = window.FS;
+      if (FS) {
+        const fsFiles = readSaveSlotFiles(FS, slotDir);
+        for (const { path } of fsFiles) {
+          if (!files.find(e => e.path === path)) {
+            try { files.push({ path, data: FS.readFile(path) }); } catch(e) {}
+          }
+        }
+      }
+      if (!files.length) { showToast("No files in slot"); return; }
+      const bundle = {
+        version: 1, exported: new Date().toISOString(),
+        slot: gameName, slotDir,
+        files: files.map(({ path, data }) => ({
+          name: path.split("/").pop(), path,
+          data: btoa(String.fromCharCode(...new Uint8Array(data)))
+        }))
+      };
+      const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      Object.assign(document.createElement("a"), {
+        href: url, download: "ppsspp-slot-" + gameName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".ppsspp"
+      }).click();
+      URL.revokeObjectURL(url);
+      log("Downloaded slot: " + gameName + " (" + files.length + " files)", "ok");
+      showToast("✓ Downloaded " + gameName);
+    }
+
+    async function deleteSaveFile(path) {
+      if (!confirm("Delete file:\n" + path.split("/").pop() + "?")) return;
+      // Remove from IDB
+      try {
+        const db = await openPersistDB();
+        await new Promise((res, rej) => {
+          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
+          req.onsuccess = () => res(); req.onerror = e => rej(e.target.error);
+        });
+      } catch(e) {}
+      // Remove from FS if running
+      const FS = window.FS;
+      if (FS) { try { FS.unlink(path); } catch(e) {} }
+      showToast("🗑 Deleted " + path.split("/").pop());
+      refreshSavesTab(); updateStorageInfo();
+    }
+
+    async function deleteSavePair(paths) {
+      const names = paths.map(p => p.split("/").pop()).join("\n");
+      if (!confirm("Delete:\n" + names + "?\n\nThis cannot be undone.")) return;
+      const db = await openPersistDB();
+      const FS = window.FS;
+      for (const path of paths) {
+        try {
+          await new Promise((res, rej) => {
+            const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
+            req.onsuccess = () => res(); req.onerror = e => rej(e.target.error);
+          });
+        } catch(e) {}
+        if (FS) { try { FS.unlink(path); } catch(e) {} }
+      }
+      showToast("🗑 Deleted " + paths.map(p => p.split("/").pop()).join(", "));
+      refreshSavesTab(); updateStorageInfo();
+    }
+
+    async function deleteSaveSlot(slotDir, gameName) {
+      if (!confirm("Delete ALL saves for:\n" + gameName + "?\n\nThis cannot be undone.")) return;
+      // Delete all IDB entries under this slot
+      const all   = await idbGetAll();
+      const paths = all.filter(e => e.path.startsWith(slotDir + "/")).map(e => e.path);
+      const db    = await openPersistDB();
+      for (const path of paths) {
+        await new Promise(res => {
+          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
+          req.onsuccess = res; req.onerror = res;
+        });
+      }
+      // Also remove from live FS
+      const FS = window.FS;
+      if (FS) {
+        try {
+          const files = readSaveSlotFiles(FS, slotDir);
+          for (const { path } of files) { try { FS.unlink(path); } catch(e) {} }
+          try { FS.rmdir(slotDir); } catch(e) {}
+        } catch(e) {}
+      }
+      log("Deleted slot: " + gameName, "warn");
+      showToast("🗑 Deleted slot: " + gameName);
+      refreshSavesTab(); updateStorageInfo();
+    }
+
+    async function importSaveSlot(file) {
+      try {
+        const bundle = JSON.parse(await file.text());
+        if (!Array.isArray(bundle.files)) throw new Error("Invalid slot bundle");
+        let count = 0;
+        const FS = window.FS;
+        for (const { path, data } of bundle.files) {
+          const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+          // Always save to IDB
+          await idbPut(path, bytes);
+          // Also write to live FS if running
+          if (FS) {
+            try {
+              fsMkdirP(FS, path.substring(0, path.lastIndexOf("/")));
+              FS.writeFile(path, bytes);
+            } catch(e) {}
+          }
+          count++;
+        }
+        log("Imported slot '" + (bundle.slot || file.name) + "' (" + count + " files)", "ok");
+        showToast("✓ Imported slot: " + (bundle.slot || file.name));
+        refreshSavesTab(); updateStorageInfo();
+      } catch(e) { log("Slot import error: " + e.message, "err"); showToast("❌ Import failed: " + e.message); }
+    }
+
+    // Restore persisted files into Emscripten FS before PPSSPP starts
+    async function loadPersistedFiles(FS) {
+      try {
+        const entries = await idbGetAll();
+        if (!entries.length) { log("Persistence: no saved data in IndexedDB.", "dim"); return; }
+        let ok = 0;
+        for (const { path, data } of entries) {
+          try {
+            fsMkdirP(FS, path.substring(0, path.lastIndexOf("/")));
+            FS.writeFile(path, data);
+            ok++;
+          } catch(e) { log("Persist restore failed " + path + ": " + e.message, "warn"); }
+        }
+        log("Persistence: restored " + ok + "/" + entries.length + " files from IndexedDB.", "ok");
+        showToast("✓ Restored " + ok + " saved files");
+      } catch(e) { log("Persistence: IDB load error: " + e.message, "warn"); }
+    }
+
+    // Save config+saves from Emscripten FS to IndexedDB
+    async function persistFiles(FS, label) {
+      _detectedMemstick = detectMemstickDir(FS);
+      const files = fsWalkDir(FS, _detectedMemstick);
+      if (!files.length) {
+        log("Persistence" + (label ? " [" + label + "]" : "") + ": nothing at " + _detectedMemstick, "dim");
+        updateStorageInfo(); return;
+      }
+      try {
+        for (const { path, data } of files) await idbPut(path, data);
+        _lastPersistTime = Date.now();
+        log("Persistence [" + (label || "manual") + "]: saved " + files.length + " files → IDB.", "ok");
+        updateStorageInfo();
+      } catch(e) { log("Persistence: IDB write error: " + e.message, "warn"); }
+    }
+
+    function startAutoPersist() {
+      setInterval(() => {
+        const FS = window.FS;
+        if (!started || !FS) return;
+        persistFiles(FS, "auto");
+      }, PERSIST_SYNC_MS);
+    }
+
+    /* ── Export / Import saves ──────────────────────────────────────── */
+    async function exportSaves() {
+      const FS = window.FS;
+      if (!FS) { showToast("⚠ Start PPSSPP first"); return; }
+      const root  = detectMemstickDir(FS);
+      const files = fsWalkDir(FS, root);
+      if (!files.length) { showToast("No save data to export."); return; }
+      const bundle = {
+        version: 1,
+        exported: new Date().toISOString(),
+        ppssppMemstick: root,
+        files: files.map(({ path, data }) => ({
+          path,
+          data: btoa(String.fromCharCode(...new Uint8Array(data)))
+        }))
+      };
+      const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = Object.assign(document.createElement("a"), {
+        href: url, download: "ppsspp-saves-" + new Date().toISOString().slice(0, 10) + ".ppsspp"
+      });
+      a.click(); URL.revokeObjectURL(url);
+      log("Exported " + files.length + " files.", "ok");
+      showToast("✓ Exported " + files.length + " files");
+    }
+
+    async function importSaves(file) {
+      const FS = window.FS;
+      if (!FS) { showToast("⚠ Start PPSSPP first to import"); return; }
+      try {
+        const bundle = JSON.parse(await file.text());
+        if (!Array.isArray(bundle.files)) throw new Error("Invalid bundle format");
+        let count = 0;
+        for (const { path, data } of bundle.files) {
+          const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+          fsMkdirP(FS, path.substring(0, path.lastIndexOf("/")));
+          FS.writeFile(path, bytes);
+          await idbPut(path, bytes);
+          count++;
+        }
+        log("Imported " + count + " files from " + file.name, "ok");
+        showToast("✓ Imported " + count + " save files");
+        updateStorageInfo();
+      } catch(e) { log("Import error: " + e.message, "err"); showToast("❌ Import failed: " + e.message); }
+    }
+
+    /* ── Runtime ISO loading (while PPSSPP is running) ──────────────── */
+    async function loadISOAtRuntime(file) {
+      const FS = window.FS;
+      if (!FS) { showToast("⚠ Start PPSSPP first"); return; }
+      const safe = file.name.replace(/[^a-zA-Z0-9._\-]/g, "_");
+      const path = VIRTUAL_GAME_DIR + "/" + safe;
+      log("Loading ISO at runtime: " + file.name + " → " + path, "info");
+      showToast("Loading " + file.name + "…");
+      try {
+        try { FS.mkdirTree(VIRTUAL_GAME_DIR); } catch(e) {}
+        FS.writeFile(path, new Uint8Array(await file.arrayBuffer()));
+        log("ISO ready at " + path + ". Open it from PPSSPP\u2019s game browser (Home \u2192 Games).", "ok");
+        showToast("✓ " + file.name + " loaded → open from PPSSPP game browser", 5000);
+        refreshGamesList();
+      } catch(e) { log("Runtime ISO load failed: " + e.message, "err"); showToast("❌ " + e.message); }
+    }
 
     /* ── AudioWorklet player ────────────────────────────────────────── */
     let audioWorkletPlayer     = null;
@@ -1095,6 +1924,10 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
           (async () => {
             try {
               await preloadAssets(FS);
+              // Restore persisted config + saves from IndexedDB
+              setStatus("Restoring saves from IndexedDB\u2026", "run");
+              showLoading("Restoring saves\u2026");
+              await loadPersistedFiles(FS);
               gameArg = await preloadGame(FS);
               Module.arguments.length = 0;
               if (gameArg) Module.arguments.push(gameArg);
@@ -1113,11 +1946,18 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
         }],
         onRuntimeInitialized() {
           log("Runtime initialized.", "ok");
-          setStatus(gameArg ? "Runtime ready — launching game\u2026" : "Runtime ready — launching UI\u2026", "ok");
+          setStatus(gameArg ? "Runtime ready \u2014 launching game\u2026" : "Runtime ready \u2014 launching UI\u2026", "ok");
           hideLoading();
+          // Show runtime ISO loader button
+          document.getElementById("runtimeIsoLabel").style.display = "";
+          // Start auto-persist loop (every 30s)
+          startAutoPersist();
+          updateStorageInfo();
           setTimeout(describeAudio, 1000);
           setInterval(reportAudioStatus, 5000);
           setInterval(updateInfoPanel,   2000);
+          // Initial persist after PPSSPP creates its directories
+          setTimeout(() => persistFiles(window.FS, "init"), 8000);
         },
         onAbort(reason) {
           log("Runtime abort: " + reason, "err");
@@ -1145,6 +1985,83 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     });
 
     startBtn.addEventListener("click", start);
+
+    // ── Runtime ISO loading ──────────────────────────────────────────
+    document.getElementById("runtimeIsoFile").addEventListener("change", e => {
+      const f = e.target.files[0]; if (!f) return;
+      e.target.value = "";
+      loadISOAtRuntime(f);
+    });
+
+    // ── Saves tab buttons ─────────────────────────────────────────────
+    document.getElementById("refreshSavesBtn").addEventListener("click", refreshSavesTab);
+    document.getElementById("exportAllSavesBtn").addEventListener("click", exportSaves);
+    document.getElementById("importSaveSlotFile").addEventListener("change", e => {
+      const f = e.target.files[0]; if (!f) return;
+      importSaveSlot(f); e.target.value = "";
+    });
+    document.getElementById("deleteAllSavesBtn").addEventListener("click", async () => {
+      if (!confirm("Delete ALL save data and save states?\nThis cannot be undone.")) return;
+      // Delete only save-related IDB entries (not config files)
+      const all = await idbGetAll();
+      const db  = await openPersistDB();
+      for (const { path } of all) {
+        const isSave = SAVE_SUBDIRS.some(sub => path.includes("/" + sub + "/"));
+        if (!isSave) continue;
+        await new Promise(res => {
+          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
+          req.onsuccess = res; req.onerror = res;
+        });
+      }
+      // Also wipe from live FS if running
+      const FS = window.FS;
+      if (FS) {
+        const memstick = _detectedMemstick || detectMemstickDir(FS);
+        for (const { dir, flat } of SAVE_SUBDIRS) {
+          const base = memstick + "/" + dir;
+          if (flat) {
+            // flat: delete all files in the dir
+            let entries; try { entries = FS.readdir(base).filter(n=>n!=="."&&n!==".."); } catch(e){ entries=[]; }
+            for (const name of entries) { try { FS.unlink(base + "/" + name); } catch(e){} }
+          } else {
+            let games; try { games = FS.readdir(base).filter(n=>n!=="."&&n!==".."); } catch(e){ games=[]; }
+            for (const g of games) {
+              const slotDir = base + "/" + g;
+              const files = readSaveSlotFiles(FS, slotDir);
+              for (const {path} of files) { try { FS.unlink(path); } catch(e){} }
+              try { FS.rmdir(slotDir); } catch(e){}
+            }
+          }
+        }
+      }
+      showToast("🗑 All save data deleted");
+      refreshSavesTab(); updateStorageInfo();
+    });
+
+    // ── Storage panel buttons ────────────────────────────────────────
+    document.getElementById("syncNowBtn").addEventListener("click", async () => {
+      const FS = window.FS;
+      if (!FS) { showToast("⚠ Start PPSSPP first"); return; }
+      await persistFiles(FS, "manual");
+      showToast("✓ Synced to IndexedDB");
+    });
+
+    document.getElementById("exportSavesBtn").addEventListener("click", exportSaves);
+
+    document.getElementById("importSavesFile").addEventListener("change", e => {
+      const f = e.target.files[0]; if (!f) return;
+      e.target.value = "";
+      importSaves(f);
+    });
+
+    document.getElementById("clearStorageBtn").addEventListener("click", async () => {
+      if (!confirm("Delete ALL saved data from IndexedDB? This cannot be undone.")) return;
+      await idbClearAll();
+      _lastPersistTime = 0;
+      updateStorageInfo();
+      log("IndexedDB cleared.", "warn");
+      showToast("🗑 All saved data cleared");
+    });
 
     window.addEventListener("pointerdown", () => { if (started) unlockAudio(); });
     window.addEventListener("keydown",      () => { if (started) unlockAudio(); });
@@ -1182,6 +2099,8 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     log("Build: " + BUILD_STAMP, "dim");
     probeWebGLFeatures();
     updateInfoPanel();
+    updateStorageInfo();    // populate IDB tab with stats on load
+    refreshSavesTab();      // populate Saves tab from IDB on load (no FS needed)
   </script>
 </body>
 </html>
