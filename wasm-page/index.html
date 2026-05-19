@@ -360,6 +360,7 @@
     .game-entry { display: flex; justify-content: space-between; align-items: center; }
     .game-entry span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
     .game-entry small { color: var(--muted); flex-shrink: 0; }
+    .game-entry button { height: 21px; min-width: 48px; padding: 0 6px; font-size: 10px; margin-left: 6px; }
 
     /* ── Saves tab ──────────────────────────────────────────────────── */
     #savesPanel {
@@ -417,31 +418,31 @@
     .save-slot.has-thumb .save-slot-meta { grid-column: 2; }
     .save-slot.has-thumb .save-slot-actions { grid-column: 3; }
     .saves-stats { padding: 6px 12px 4px; font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
-    #idbFileList { margin-top: 4px; flex: 1; overflow-y: auto;
+    #opfsFileList { margin-top: 4px; flex: 1; overflow-y: auto;
       scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
-    .idb-cat-header {
+    .opfs-cat-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 5px 12px 3px; gap: 8px;
       font-size: 10px; font-weight: 700; letter-spacing: .08em;
       text-transform: uppercase; color: var(--muted);
       border-bottom: 1px solid var(--border); border-top: 1px solid var(--border); margin-top: 4px;
     }
-    .idb-file-row {
+    .opfs-file-row {
       display: grid; grid-template-columns: 1fr auto auto;
       align-items: center; gap: 4px 6px;
       padding: 4px 12px; border-bottom: 1px solid rgba(30,39,48,.4);
       font-size: 10.5px;
     }
-    .idb-file-row:hover { background: var(--surface2); }
-    .idb-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-    .idb-file-size { font-size: 9.5px; color: var(--muted); flex-shrink: 0; }
-    .idb-file-actions { display: flex; gap: 3px; }
-    .idb-file-actions button {
+    .opfs-file-row:hover { background: var(--surface2); }
+    .opfs-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .opfs-file-size { font-size: 9.5px; color: var(--muted); flex-shrink: 0; }
+    .opfs-file-actions { display: flex; gap: 3px; }
+    .opfs-file-actions button {
       height: 20px; min-width: 20px; width: 20px; padding: 0;
       font-size: 11px; border-color: transparent; background: transparent;
     }
-    .idb-file-actions button:hover { background: var(--surface3); border-color: var(--border2); }
-    .idb-file-actions button.del:hover { background: rgba(255,95,95,.12); color: var(--danger); border-color: rgba(255,95,95,.3); }
+    .opfs-file-actions button:hover { background: var(--surface3); border-color: var(--border2); }
+    .opfs-file-actions button.del:hover { background: rgba(255,95,95,.12); color: var(--danger); border-color: rgba(255,95,95,.3); }
   </style>
 </head>
 <body>
@@ -517,7 +518,7 @@
         <div class="tab active" data-tab="log">Console</div>
         <div class="tab"        data-tab="info">System</div>
         <div class="tab"        data-tab="saves">&#128190; Saves</div>
-        <div class="tab"        data-tab="storage">&#128191; IDB</div>
+        <div class="tab"        data-tab="storage">&#128191; OPFS</div>
       </div>
 
       <div class="tab-panel active" id="tabLog">
@@ -582,7 +583,7 @@
       <div class="tab-panel" id="tabStorage">
         <div id="storagePanel">
           <div class="info-group">
-            <h3>IndexedDB Persistence</h3>
+            <h3>OPFS Persistence</h3>
             <div class="info-row"><span class="info-key">Saved Files</span>  <span class="info-val" id="iStorageFiles">&#8212;</span></div>
             <div class="info-row"><span class="info-key">Total Size</span>   <span class="info-val" id="iStorageSize">&#8212;</span></div>
             <div class="info-row"><span class="info-key">Last Sync</span>    <span class="info-val" id="iLastSync">Never</span></div>
@@ -590,7 +591,7 @@
             <div class="info-row"><span class="info-key">Persist Path</span> <span class="info-val" id="iMemstickPath" style="font-size:10px;word-break:break-all">&#8212;</span></div>
           </div>
           <div class="storage-actions">
-            <button id="syncNowBtn">&#128190; Save Now (sync to IDB)</button>
+            <button id="syncNowBtn">&#128190; Save Now (sync to OPFS)</button>
             <button id="exportSavesBtn">&#11123; Export Saves (.ppsspp)</button>
             <label class="btn" id="importSavesLabel" style="width:100%;justify-content:flex-start;padding:0 12px;height:30px;font-size:11.5px">
               &#11121; Import Saves (.ppsspp)
@@ -604,7 +605,7 @@
           </div>
         </div>
         <div style="padding:4px 12px 2px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);margin-top:2px">Persisted Files</div>
-        <div id="idbFileList"><span style="padding:8px 12px;color:var(--muted);font-size:11px;display:block">Loading…</span></div>
+        <div id="opfsFileList"><span style="padding:8px 12px;color:var(--muted);font-size:11px;display:block">Loading…</span></div>
       </div>
     </aside>
   </div>
@@ -622,8 +623,9 @@
 
     // Persistence: PPSSPP writes config+saves to $HOME/.config/ppsspp/ on Linux/Emscripten
     const PERSIST_ROOTS       = ["/home/web_user/.config/ppsspp", "/root/.config/ppsspp"];
-    const IDB_DB_NAME         = "ppsspp_persist";
-    const IDB_STORE_NAME      = "files";
+    const OPFS_ROOT_DIR       = "ppsspp-web";
+    const OPFS_PERSIST_DIR    = "persist";
+    const OPFS_GAMES_DIR      = "games";
     const PERSIST_SYNC_MS     = 30000; // auto-sync every 30 s
 
     /* ── DOM refs ───────────────────────────────────────────────────── */
@@ -657,6 +659,7 @@
 
     /* ── State ──────────────────────────────────────────────────────── */
     let selectedGame = null;
+    let selectedStoredGame = null;
     let started      = false;
     const trackedAudioContexts = [];
     const audioDebug = {
@@ -674,51 +677,110 @@
       toastEl._t = setTimeout(() => toastEl.classList.remove("visible"), ms);
     }
 
-    /* ── IndexedDB Persistence ──────────────────────────────────────── */
-    let _idb = null;
+    /* ── OPFS Persistence ───────────────────────────────────────────── */
+    let _opfsRoot = null;
     let _detectedMemstick = null;
     let _lastPersistTime  = 0;
 
-    function openPersistDB() {
-      if (_idb) return Promise.resolve(_idb);
-      return new Promise((res, rej) => {
-        const req = indexedDB.open(IDB_DB_NAME, 1);
-        req.onupgradeneeded = e => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains(IDB_STORE_NAME))
-            db.createObjectStore(IDB_STORE_NAME, { keyPath: "path" });
-        };
-        req.onsuccess = e => { _idb = e.target.result; res(_idb); };
-        req.onerror   = e => rej(e.target.error);
-      });
+    function hasOPFS() {
+      return !!navigator.storage?.getDirectory;
     }
 
-    async function idbPut(path, data) {
-      const db  = await openPersistDB();
-      return new Promise((res, rej) => {
-        const tx  = db.transaction(IDB_STORE_NAME, "readwrite");
-        const req = tx.objectStore(IDB_STORE_NAME).put({ path, data });
-        req.onsuccess = () => res();
-        req.onerror   = e  => rej(e.target.error);
-      });
+    async function opfsRoot() {
+      if (!hasOPFS()) throw new Error("Origin Private File System is not available in this browser/context");
+      if (_opfsRoot) return _opfsRoot;
+      const origin = await navigator.storage.getDirectory();
+      _opfsRoot = await origin.getDirectoryHandle(OPFS_ROOT_DIR, { create: true });
+      return _opfsRoot;
     }
 
-    async function idbGetAll() {
-      const db = await openPersistDB();
-      return new Promise((res, rej) => {
-        const req = db.transaction(IDB_STORE_NAME, "readonly").objectStore(IDB_STORE_NAME).getAll();
-        req.onsuccess = e => res(e.target.result || []);
-        req.onerror   = e => rej(e.target.error);
-      });
+    async function opfsDir(parts, create) {
+      let dir = await opfsRoot();
+      for (const part of parts) dir = await dir.getDirectoryHandle(part, { create });
+      return dir;
     }
 
-    async function idbClearAll() {
-      const db = await openPersistDB();
-      return new Promise((res, rej) => {
-        const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).clear();
-        req.onsuccess = () => res();
-        req.onerror   = e  => rej(e.target.error);
-      });
+    function opfsPathParts(path) {
+      return path.split("/").filter(Boolean);
+    }
+
+    async function opfsParent(path, create, base = OPFS_PERSIST_DIR) {
+      const parts = opfsPathParts(path);
+      const name = parts.pop();
+      if (!name) throw new Error("Invalid OPFS path: " + path);
+      return { dir: await opfsDir([base, ...parts], create), name };
+    }
+
+    async function opfsPut(path, data) {
+      const { dir, name } = await opfsParent(path, true);
+      const handle = await dir.getFileHandle(name, { create: true });
+      const writable = await handle.createWritable();
+      await writable.write(data);
+      await writable.close();
+    }
+
+    async function opfsRead(path) {
+      const { dir, name } = await opfsParent(path, false);
+      const handle = await dir.getFileHandle(name);
+      return new Uint8Array(await (await handle.getFile()).arrayBuffer());
+    }
+
+    async function opfsDelete(path) {
+      const { dir, name } = await opfsParent(path, false);
+      await dir.removeEntry(name);
+    }
+
+    async function opfsClearAll() {
+      const root = await opfsRoot();
+      try { await root.removeEntry(OPFS_PERSIST_DIR, { recursive: true }); } catch(e) {}
+      try { await root.removeEntry(OPFS_GAMES_DIR, { recursive: true }); } catch(e) {}
+      await root.getDirectoryHandle(OPFS_PERSIST_DIR, { create: true });
+      await root.getDirectoryHandle(OPFS_GAMES_DIR, { create: true });
+    }
+
+    async function opfsWalk(base = OPFS_PERSIST_DIR, prefix = "", includeData = true) {
+      const files = [];
+      let dir;
+      try { dir = await opfsDir([base, ...opfsPathParts(prefix)], false); }
+      catch(e) { return files; }
+
+      for await (const [name, handle] of dir.entries()) {
+        const rel = prefix ? prefix + "/" + name : name;
+        if (handle.kind === "directory") {
+          files.push(...await opfsWalk(base, rel, includeData));
+        } else {
+          const file = await handle.getFile();
+          const entry = {
+            path: base === OPFS_PERSIST_DIR ? "/" + rel : rel,
+            name,
+            size: file.size,
+          };
+          if (includeData) entry.data = new Uint8Array(await file.arrayBuffer());
+          files.push(entry);
+        }
+      }
+      return files;
+    }
+
+    async function opfsPutGame(name, data) {
+      const safe = name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const { dir, name: fileName } = await opfsParent(safe, true, OPFS_GAMES_DIR);
+      const handle = await dir.getFileHandle(fileName, { create: true });
+      const writable = await handle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      return safe;
+    }
+
+    async function opfsReadGame(name) {
+      const { dir, name: fileName } = await opfsParent(name, false, OPFS_GAMES_DIR);
+      const handle = await dir.getFileHandle(fileName);
+      return new Uint8Array(await (await handle.getFile()).arrayBuffer());
+    }
+
+    async function opfsDeleteGame(name) {
+      const { dir, name: fileName } = await opfsParent(name, false, OPFS_GAMES_DIR);
+      await dir.removeEntry(fileName);
     }
 
     // Walk Emscripten FS recursively from root, return [{path, data}]
@@ -762,8 +824,22 @@
       return (n / 1048576).toFixed(1) + " MB";
     }
 
-    // Categorize an IDB path for the file browser
-    function idbFileCategory(path) {
+    function bytesToBase64(data) {
+      const bytes = new Uint8Array(data);
+      let bin = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      return btoa(bin);
+    }
+
+    function base64ToBytes(data) {
+      return Uint8Array.from(atob(data), c => c.charCodeAt(0));
+    }
+
+    // Categorize an OPFS path for the file browser
+    function opfsFileCategory(path) {
       if (/\/PSP\/SAVEDATA\//i.test(path))     return "Save Data";
       if (/\/PSP\/PPSSPP_STATE\//i.test(path)) return "Save States";
       if (/\/PSP\/SYSTEM\//i.test(path))       return "System / Config";
@@ -774,16 +850,11 @@
       return "Other";
     }
 
-    async function downloadIdbFile(path) {
+    async function downloadOpfsFile(path) {
       try {
-        const db = await openPersistDB();
-        const entry = await new Promise((res, rej) => {
-          const req = db.transaction(IDB_STORE_NAME, "readonly").objectStore(IDB_STORE_NAME).get(path);
-          req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e.target.error);
-        });
-        if (!entry) { showToast("❌ Not found in IDB"); return; }
+        const data = await opfsRead(path);
         const name = path.split("/").pop();
-        const blob = new Blob([entry.data], { type: "application/octet-stream" });
+        const blob = new Blob([data], { type: "application/octet-stream" });
         const url  = URL.createObjectURL(blob);
         Object.assign(document.createElement("a"), { href: url, download: name }).click();
         URL.revokeObjectURL(url);
@@ -791,15 +862,9 @@
       } catch(e) { showToast("❌ " + e.message); }
     }
 
-    async function deleteIdbFile(path) {
-      if (!confirm("Delete from IDB:\n" + path.split("/").pop() + "?")) return;
-      try {
-        const db = await openPersistDB();
-        await new Promise((res, rej) => {
-          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
-          req.onsuccess = () => res(); req.onerror = e => rej(e.target.error);
-        });
-      } catch(e) {}
+    async function deleteOpfsFile(path) {
+      if (!confirm("Delete from OPFS:\n" + path.split("/").pop() + "?")) return;
+      try { await opfsDelete(path); } catch(e) {}
       if (window.FS) { try { window.FS.unlink(path); } catch(e) {} }
       showToast("🗑 Deleted " + path.split("/").pop());
       updateStorageInfo(); refreshSavesTab();
@@ -807,31 +872,33 @@
 
     async function updateStorageInfo() {
       try {
-        const entries = await idbGetAll();
-        const bytes   = entries.reduce((s, e) => s + (e.data?.byteLength || 0), 0);
+        const entries = await opfsWalk(OPFS_PERSIST_DIR, "", false);
+        const games   = await opfsWalk(OPFS_GAMES_DIR, "", false);
+        const allFiles = [...entries, ...games.map(g => ({ ...g, path: VIRTUAL_GAME_DIR + "/" + g.path }))];
+        const bytes   = allFiles.reduce((s, e) => s + (e.data?.byteLength || e.size || 0), 0);
         const el = id => document.getElementById(id);
-        el("iStorageFiles").textContent = String(entries.length);
-        el("iStorageFiles").className   = entries.length ? "info-val good" : "info-val";
+        el("iStorageFiles").textContent = String(allFiles.length);
+        el("iStorageFiles").className   = allFiles.length ? "info-val good" : "info-val";
         el("iStorageSize").textContent  = formatBytes(bytes);
         el("iLastSync").textContent     = _lastPersistTime
           ? new Date(_lastPersistTime).toLocaleTimeString() : "Never";
         el("iMemstickPath").textContent = _detectedMemstick || PERSIST_ROOTS[0];
 
         // Render grouped file browser
-        const listEl = document.getElementById("idbFileList");
+        const listEl = document.getElementById("opfsFileList");
         if (listEl) {
-          if (!entries.length) {
+          if (!allFiles.length) {
             listEl.innerHTML = `<span style="padding:8px 12px;color:var(--muted);font-size:11px;display:block">No files persisted yet.</span>`;
           } else {
             // Group by category
             const cats = new Map();
-            for (const { path, data } of entries) {
-              const cat = idbFileCategory(path);
+            for (const { path, data, size } of allFiles) {
+              const cat = path.startsWith(VIRTUAL_GAME_DIR + "/") ? "ISO Library" : opfsFileCategory(path);
               if (!cats.has(cat)) cats.set(cat, []);
-              cats.get(cat).push({ path, size: data?.byteLength || 0 });
+              cats.get(cat).push({ path, size: data?.byteLength || size || 0 });
             }
             // Sort categories: Config first, then alphabetical
-            const catOrder = ["Config", "System / Config", "Save States", "Save Data", "Screenshots", "Cheats", "Games (PSP)", "Other"];
+            const catOrder = ["ISO Library", "Config", "System / Config", "Save States", "Save Data", "Screenshots", "Cheats", "Games (PSP)", "Other"];
             const sorted = [...cats.entries()].sort((a, b) => {
               const ai = catOrder.indexOf(a[0]); const bi = catOrder.indexOf(b[0]);
               return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
@@ -839,15 +906,15 @@
             let html = "";
             for (const [cat, files] of sorted) {
               const catBytes = files.reduce((s, f) => s + f.size, 0);
-              html += `<div class="idb-cat-header"><span>${esc(cat)} (${files.length})</span><span style="color:var(--info);font-size:9.5px">${formatBytes(catBytes)}</span></div>`;
+              html += `<div class="opfs-cat-header"><span>${esc(cat)} (${files.length})</span><span style="color:var(--info);font-size:9.5px">${formatBytes(catBytes)}</span></div>`;
               for (const { path, size } of files.sort((a, b) => a.path.localeCompare(b.path))) {
                 const name = path.split("/").pop();
-                html += `<div class="idb-file-row">`;
-                html += `<div class="idb-file-name" title="${esc(path)}">${esc(name)}</div>`;
-                html += `<div class="idb-file-size">${formatBytes(size)}</div>`;
-                html += `<div class="idb-file-actions">`;
-                html += `<button title="Download" onclick="downloadIdbFile(${JSON.stringify(path)})">&#11123;</button>`;
-                html += `<button class="del" title="Delete" onclick="deleteIdbFile(${JSON.stringify(path)})">&#128465;</button>`;
+                html += `<div class="opfs-file-row">`;
+                html += `<div class="opfs-file-name" title="${esc(path)}">${esc(name)}</div>`;
+                html += `<div class="opfs-file-size">${formatBytes(size)}</div>`;
+                html += `<div class="opfs-file-actions">`;
+                html += `<button title="Download" onclick="downloadStoredFile(${JSON.stringify(path)})">&#11123;</button>`;
+                html += `<button class="del" title="Delete" onclick="deleteStoredFile(${JSON.stringify(path)})">&#128465;</button>`;
                 html += `</div>`;
                 html += `</div>`;
               }
@@ -855,23 +922,89 @@
             listEl.innerHTML = html;
           }
         }
-      } catch(e) {}
+      } catch(e) { log("OPFS storage info error: " + e.message, "warn"); }
       refreshGamesList();
     }
 
-    function refreshGamesList() {
+    async function downloadStoredFile(path) {
+      if (path.startsWith(VIRTUAL_GAME_DIR + "/")) {
+        const name = path.slice((VIRTUAL_GAME_DIR + "/").length);
+        const data = await opfsReadGame(name);
+        const url = URL.createObjectURL(new Blob([data], { type: "application/octet-stream" }));
+        Object.assign(document.createElement("a"), { href: url, download: name }).click();
+        URL.revokeObjectURL(url);
+        showToast("✓ Downloaded " + name);
+      } else {
+        await downloadOpfsFile(path);
+      }
+    }
+
+    async function deleteStoredFile(path) {
+      if (path.startsWith(VIRTUAL_GAME_DIR + "/")) {
+        const name = path.slice((VIRTUAL_GAME_DIR + "/").length);
+        if (!confirm("Delete ISO from OPFS:\n" + name + "?")) return;
+        try { await opfsDeleteGame(name); } catch(e) {}
+        if (window.FS) { try { window.FS.unlink(path); } catch(e) {} }
+        showToast("🗑 Deleted " + name);
+        updateStorageInfo();
+      } else {
+        await deleteOpfsFile(path);
+      }
+    }
+
+    async function refreshGamesList() {
       const FS  = window.FS;
       const el  = document.getElementById("gamesList");
-      if (!FS || !el) return;
+      if (!el) return;
       try {
-        const entries = FS.readdir(VIRTUAL_GAME_DIR).filter(n => n !== "." && n !== "..");
-        if (!entries.length) { el.textContent = "None loaded"; return; }
-        el.innerHTML = entries.map(n => {
-          let size = "";
-          try { size = formatBytes(FS.stat(VIRTUAL_GAME_DIR + "/" + n).size); } catch(e) {}
-          return `<div class="game-entry"><span title="${n}">${n}</span><small>${size}</small></div>`;
+        const names = new Map();
+        const storedNames = new Set();
+        if (FS) {
+          for (const n of FS.readdir(VIRTUAL_GAME_DIR).filter(n => n !== "." && n !== "..")) {
+            let size = 0;
+            try { size = FS.stat(VIRTUAL_GAME_DIR + "/" + n).size; } catch(e) {}
+            names.set(n, size);
+          }
+        }
+        for (const g of await opfsWalk(OPFS_GAMES_DIR, "", false)) {
+          storedNames.add(g.path);
+          if (!names.has(g.path)) names.set(g.path, g.size || g.data?.byteLength || 0);
+        }
+        const entries = [...names.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        if (!entries.length) { el.textContent = "None stored"; return; }
+        el.innerHTML = entries.map(([n, size]) => {
+          const action = storedNames.has(n)
+            ? `<button onclick="mountOrSelectStoredGame(${JSON.stringify(n)})">${started ? "Mount" : "Select"}</button>`
+            : "";
+          return `<div class="game-entry"><span title="${esc(n)}">${esc(n)}</span><small>${formatBytes(size)}</small>${action}</div>`;
         }).join("");
-      } catch(e) { el.textContent = "None loaded"; }
+      } catch(e) { el.textContent = hasOPFS() ? "None stored" : "OPFS unavailable"; }
+    }
+
+    async function mountOrSelectStoredGame(name) {
+      if (!started || !window.FS) {
+        selectedStoredGame = name;
+        selectedGame = null;
+        const textNode = fileLabel.firstChild;
+        if (textNode && textNode.nodeType === 3) textNode.textContent = "\uD83D\uDCC2 " + name + " ";
+        setStatus("Selected stored ISO: " + name);
+        showToast("✓ Selected " + name);
+        return;
+      }
+
+      const FS = window.FS;
+      const path = VIRTUAL_GAME_DIR + "/" + name;
+      try {
+        showToast("Mounting " + name + "…");
+        FS.mkdirTree(VIRTUAL_GAME_DIR);
+        FS.writeFile(path, await opfsReadGame(name));
+        log("Mounted stored ISO from OPFS: " + path, "ok");
+        showToast("✓ " + name + " mounted");
+        refreshGamesList();
+      } catch(e) {
+        log("Stored ISO mount failed: " + e.message, "err");
+        showToast("❌ " + e.message);
+      }
     }
 
     // Convert binary data to a data: URL for inline display
@@ -910,12 +1043,12 @@
       return files;
     }
 
-    // Build a unified file map from IDB + live FS (FS takes priority as it's fresher)
+    // Build a unified file map from OPFS + live FS (FS takes priority as it's fresher)
     async function buildSaveFileMap() {
-      const idbEntries = await idbGetAll();
-      const map = new Map(); // path → {path, data, size, fromIDB}
-      for (const { path, data } of idbEntries) {
-        map.set(path, { path, data, size: data?.byteLength || 0, fromIDB: true });
+      const opfsEntries = await opfsWalk();
+      const map = new Map(); // path → {path, data, size, fromOPFS}
+      for (const { path, data, size } of opfsEntries) {
+        map.set(path, { path, data, size: data?.byteLength || size || 0, fromOPFS: true });
       }
       // Overlay with live FS if running (newer / authoritative)
       const FS = window.FS;
@@ -923,7 +1056,7 @@
         const memstick = _detectedMemstick || detectMemstickDir(FS);
         const fsFiles  = fsWalkDir(FS, memstick);
         for (const { path, data } of fsFiles) {
-          map.set(path, { path, data, size: data?.byteLength || 0, fromIDB: false });
+          map.set(path, { path, data, size: data?.byteLength || 0, fromOPFS: false });
         }
       }
       return map;
@@ -993,11 +1126,11 @@
 
       const slots = groupSavesBySlot(fileMap);
       const fromFS  = !!window.FS;
-      const source  = fromFS ? "live FS + IDB" : "IndexedDB";
+      const source  = fromFS ? "live FS + OPFS" : "OPFS";
 
       if (!slots.length) {
         empty.style.display = "block";
-        empty.innerHTML = "No save data found in IndexedDB or FS.<br><small>Play a game, create a save, then sync.</small>";
+        empty.innerHTML = "No save data found in OPFS or FS.<br><small>Play a game, create a save, then sync.</small>";
         list.style.display = "none";
         if (stats) stats.textContent = "";
         return;
@@ -1074,16 +1207,11 @@
         " · source: " + source;
     }
 
-    // Read file data from IDB first, fallback to FS
+    // Read file data from FS first, fallback to OPFS
     async function readSaveFileData(path) {
       const FS = window.FS;
       if (FS) { try { return FS.readFile(path); } catch(e) {} }
-      const db = await openPersistDB();
-      return new Promise((res, rej) => {
-        const req = db.transaction(IDB_STORE_NAME, "readonly").objectStore(IDB_STORE_NAME).get(path);
-        req.onsuccess = e => e.target.result ? res(e.target.result.data) : rej(new Error("Not found in IDB: " + path));
-        req.onerror   = e => rej(e.target.error);
-      });
+      return opfsRead(path);
     }
 
     async function downloadSaveFile(path) {
@@ -1099,8 +1227,8 @@
     }
 
     async function downloadSaveSlot(slotDir, gameName) {
-      // Collect all IDB entries for this slot
-      const all   = await idbGetAll();
+      // Collect all OPFS entries for this slot
+      const all   = await opfsWalk();
       const files = all.filter(e => e.path.startsWith(slotDir + "/"));
       // Also grab any FS-only files not yet persisted
       const FS = window.FS;
@@ -1118,7 +1246,7 @@
         slot: gameName, slotDir,
         files: files.map(({ path, data }) => ({
           name: path.split("/").pop(), path,
-          data: btoa(String.fromCharCode(...new Uint8Array(data)))
+          data: bytesToBase64(data)
         }))
       };
       const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
@@ -1133,14 +1261,8 @@
 
     async function deleteSaveFile(path) {
       if (!confirm("Delete file:\n" + path.split("/").pop() + "?")) return;
-      // Remove from IDB
-      try {
-        const db = await openPersistDB();
-        await new Promise((res, rej) => {
-          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
-          req.onsuccess = () => res(); req.onerror = e => rej(e.target.error);
-        });
-      } catch(e) {}
+      // Remove from OPFS
+      try { await opfsDelete(path); } catch(e) {}
       // Remove from FS if running
       const FS = window.FS;
       if (FS) { try { FS.unlink(path); } catch(e) {} }
@@ -1151,15 +1273,9 @@
     async function deleteSavePair(paths) {
       const names = paths.map(p => p.split("/").pop()).join("\n");
       if (!confirm("Delete:\n" + names + "?\n\nThis cannot be undone.")) return;
-      const db = await openPersistDB();
       const FS = window.FS;
       for (const path of paths) {
-        try {
-          await new Promise((res, rej) => {
-            const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
-            req.onsuccess = () => res(); req.onerror = e => rej(e.target.error);
-          });
-        } catch(e) {}
+        try { await opfsDelete(path); } catch(e) {}
         if (FS) { try { FS.unlink(path); } catch(e) {} }
       }
       showToast("🗑 Deleted " + paths.map(p => p.split("/").pop()).join(", "));
@@ -1168,15 +1284,11 @@
 
     async function deleteSaveSlot(slotDir, gameName) {
       if (!confirm("Delete ALL saves for:\n" + gameName + "?\n\nThis cannot be undone.")) return;
-      // Delete all IDB entries under this slot
-      const all   = await idbGetAll();
+      // Delete all OPFS entries under this slot
+      const all   = await opfsWalk();
       const paths = all.filter(e => e.path.startsWith(slotDir + "/")).map(e => e.path);
-      const db    = await openPersistDB();
       for (const path of paths) {
-        await new Promise(res => {
-          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
-          req.onsuccess = res; req.onerror = res;
-        });
+        try { await opfsDelete(path); } catch(e) {}
       }
       // Also remove from live FS
       const FS = window.FS;
@@ -1199,9 +1311,9 @@
         let count = 0;
         const FS = window.FS;
         for (const { path, data } of bundle.files) {
-          const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-          // Always save to IDB
-          await idbPut(path, bytes);
+          const bytes = base64ToBytes(data);
+          // Always save to OPFS
+          await opfsPut(path, bytes);
           // Also write to live FS if running
           if (FS) {
             try {
@@ -1220,8 +1332,8 @@
     // Restore persisted files into Emscripten FS before PPSSPP starts
     async function loadPersistedFiles(FS) {
       try {
-        const entries = await idbGetAll();
-        if (!entries.length) { log("Persistence: no saved data in IndexedDB.", "dim"); return; }
+        const entries = await opfsWalk();
+        if (!entries.length) { log("Persistence: no saved data in OPFS.", "dim"); return; }
         let ok = 0;
         for (const { path, data } of entries) {
           try {
@@ -1230,12 +1342,12 @@
             ok++;
           } catch(e) { log("Persist restore failed " + path + ": " + e.message, "warn"); }
         }
-        log("Persistence: restored " + ok + "/" + entries.length + " files from IndexedDB.", "ok");
+        log("Persistence: restored " + ok + "/" + entries.length + " files from OPFS.", "ok");
         showToast("✓ Restored " + ok + " saved files");
-      } catch(e) { log("Persistence: IDB load error: " + e.message, "warn"); }
+      } catch(e) { log("Persistence: OPFS load error: " + e.message, "warn"); }
     }
 
-    // Save config+saves from Emscripten FS to IndexedDB
+    // Save config+saves from Emscripten FS to OPFS
     async function persistFiles(FS, label) {
       _detectedMemstick = detectMemstickDir(FS);
       const files = fsWalkDir(FS, _detectedMemstick);
@@ -1244,11 +1356,11 @@
         updateStorageInfo(); return;
       }
       try {
-        for (const { path, data } of files) await idbPut(path, data);
+        for (const { path, data } of files) await opfsPut(path, data);
         _lastPersistTime = Date.now();
-        log("Persistence [" + (label || "manual") + "]: saved " + files.length + " files → IDB.", "ok");
+        log("Persistence [" + (label || "manual") + "]: saved " + files.length + " files to OPFS.", "ok");
         updateStorageInfo();
-      } catch(e) { log("Persistence: IDB write error: " + e.message, "warn"); }
+      } catch(e) { log("Persistence: OPFS write error: " + e.message, "warn"); }
     }
 
     function startAutoPersist() {
@@ -1262,9 +1374,8 @@
     /* ── Export / Import saves ──────────────────────────────────────── */
     async function exportSaves() {
       const FS = window.FS;
-      if (!FS) { showToast("⚠ Start PPSSPP first"); return; }
-      const root  = detectMemstickDir(FS);
-      const files = fsWalkDir(FS, root);
+      const root  = FS ? detectMemstickDir(FS) : (_detectedMemstick || PERSIST_ROOTS[0]);
+      const files = FS ? fsWalkDir(FS, root) : await opfsWalk();
       if (!files.length) { showToast("No save data to export."); return; }
       const bundle = {
         version: 1,
@@ -1272,7 +1383,7 @@
         ppssppMemstick: root,
         files: files.map(({ path, data }) => ({
           path,
-          data: btoa(String.fromCharCode(...new Uint8Array(data)))
+          data: bytesToBase64(data)
         }))
       };
       const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
@@ -1287,21 +1398,22 @@
 
     async function importSaves(file) {
       const FS = window.FS;
-      if (!FS) { showToast("⚠ Start PPSSPP first to import"); return; }
       try {
         const bundle = JSON.parse(await file.text());
         if (!Array.isArray(bundle.files)) throw new Error("Invalid bundle format");
         let count = 0;
         for (const { path, data } of bundle.files) {
-          const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-          fsMkdirP(FS, path.substring(0, path.lastIndexOf("/")));
-          FS.writeFile(path, bytes);
-          await idbPut(path, bytes);
+          const bytes = base64ToBytes(data);
+          await opfsPut(path, bytes);
+          if (FS) {
+            fsMkdirP(FS, path.substring(0, path.lastIndexOf("/")));
+            FS.writeFile(path, bytes);
+          }
           count++;
         }
         log("Imported " + count + " files from " + file.name, "ok");
         showToast("✓ Imported " + count + " save files");
-        updateStorageInfo();
+        refreshSavesTab(); updateStorageInfo();
       } catch(e) { log("Import error: " + e.message, "err"); showToast("❌ Import failed: " + e.message); }
     }
 
@@ -1314,9 +1426,11 @@
       log("Loading ISO at runtime: " + file.name + " → " + path, "info");
       showToast("Loading " + file.name + "…");
       try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
         try { FS.mkdirTree(VIRTUAL_GAME_DIR); } catch(e) {}
-        FS.writeFile(path, new Uint8Array(await file.arrayBuffer()));
-        log("ISO ready at " + path + ". Open it from PPSSPP\u2019s game browser (Home \u2192 Games).", "ok");
+        FS.writeFile(path, bytes);
+        await opfsPutGame(file.name, bytes);
+        log("ISO ready at " + path + " and saved to OPFS. Open it from PPSSPP\u2019s game browser (Home \u2192 Games).", "ok");
         showToast("✓ " + file.name + " loaded → open from PPSSPP game browser", 5000);
         refreshGamesList();
       } catch(e) { log("Runtime ISO load failed: " + e.message, "err"); showToast("❌ " + e.message); }
@@ -1834,15 +1948,46 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       log("All assets loaded into MEMFS.", "ok");
     }
 
-    async function preloadGame(FS) {
-      if (!selectedGame) return null;
+    async function preloadStoredGames(FS) {
+      const games = await opfsWalk(OPFS_GAMES_DIR);
+      if (!games.length) {
+        log("OPFS games: no stored ISO files.", "dim");
+        return 0;
+      }
+
       FS.mkdirTree(VIRTUAL_GAME_DIR);
-      const safe = selectedGame.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      let ok = 0;
+      for (const { path, data, size } of games) {
+        const target = VIRTUAL_GAME_DIR + "/" + path;
+        try {
+          setStatus("Restoring ISO " + (ok + 1) + "/" + games.length + ": " + path, "run");
+          showLoading("Restoring ISO: " + path);
+          FS.writeFile(target, data);
+          ok++;
+          log("OPFS game mounted: " + target + " (" + formatBytes(size || data?.byteLength || 0) + ")", "ok");
+        } catch(e) {
+          log("OPFS game restore failed " + path + ": " + e.message, "warn");
+        }
+      }
+      log("OPFS games: mounted " + ok + "/" + games.length + " stored file(s) into " + VIRTUAL_GAME_DIR + ".", "ok");
+      return ok;
+    }
+
+    async function preloadGame(FS) {
+      if (!selectedGame && !selectedStoredGame) return null;
+      FS.mkdirTree(VIRTUAL_GAME_DIR);
+      const sourceName = selectedGame ? selectedGame.name : selectedStoredGame;
+      const safe = sourceName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = VIRTUAL_GAME_DIR + "/" + safe;
-      setStatus("Loading ROM into memory: " + selectedGame.name, "run");
-      showLoading("Loading ROM: " + selectedGame.name);
-      FS.writeFile(path, new Uint8Array(await selectedGame.arrayBuffer()));
-      log("ROM mounted in MEMFS: " + path, "ok");
+      setStatus("Loading ROM into memory: " + sourceName, "run");
+      showLoading("Loading ROM: " + sourceName);
+      const bytes = selectedGame
+        ? new Uint8Array(await selectedGame.arrayBuffer())
+        : await opfsReadGame(selectedStoredGame);
+      FS.writeFile(path, bytes);
+      try { if (selectedGame) await opfsPutGame(selectedGame.name, bytes); }
+      catch(e) { log("Could not persist ROM in OPFS: " + e.message, "warn"); }
+      log("ROM mounted in MEMFS" + (selectedGame ? " and saved to OPFS" : " from OPFS") + ": " + path, "ok");
       return path;
     }
 
@@ -1924,10 +2069,11 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
           (async () => {
             try {
               await preloadAssets(FS);
-              // Restore persisted config + saves from IndexedDB
-              setStatus("Restoring saves from IndexedDB\u2026", "run");
+              // Restore persisted config and saves from OPFS
+              setStatus("Restoring saves from OPFS\u2026", "run");
               showLoading("Restoring saves\u2026");
               await loadPersistedFiles(FS);
+              await preloadStoredGames(FS);
               gameArg = await preloadGame(FS);
               Module.arguments.length = 0;
               if (gameArg) Module.arguments.push(gameArg);
@@ -1977,6 +2123,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     /* ── Event wiring ───────────────────────────────────────────────── */
     fileInput.addEventListener("change", () => {
       selectedGame = fileInput.files[0] || null;
+      selectedStoredGame = null;
       // Update the visible text node inside the label
       const textNode = fileLabel.firstChild;
       if (textNode && textNode.nodeType === 3)
@@ -2002,16 +2149,12 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     });
     document.getElementById("deleteAllSavesBtn").addEventListener("click", async () => {
       if (!confirm("Delete ALL save data and save states?\nThis cannot be undone.")) return;
-      // Delete only save-related IDB entries (not config files)
-      const all = await idbGetAll();
-      const db  = await openPersistDB();
+      // Delete only save-related OPFS entries (not config files or ISOs)
+      const all = await opfsWalk();
       for (const { path } of all) {
-        const isSave = SAVE_SUBDIRS.some(sub => path.includes("/" + sub + "/"));
+        const isSave = SAVE_SUBDIRS.some(sub => path.includes("/" + sub.dir + "/"));
         if (!isSave) continue;
-        await new Promise(res => {
-          const req = db.transaction(IDB_STORE_NAME, "readwrite").objectStore(IDB_STORE_NAME).delete(path);
-          req.onsuccess = res; req.onerror = res;
-        });
+        try { await opfsDelete(path); } catch(e) {}
       }
       // Also wipe from live FS if running
       const FS = window.FS;
@@ -2043,7 +2186,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       const FS = window.FS;
       if (!FS) { showToast("⚠ Start PPSSPP first"); return; }
       await persistFiles(FS, "manual");
-      showToast("✓ Synced to IndexedDB");
+      showToast("✓ Synced to OPFS");
     });
 
     document.getElementById("exportSavesBtn").addEventListener("click", exportSaves);
@@ -2055,11 +2198,11 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     });
 
     document.getElementById("clearStorageBtn").addEventListener("click", async () => {
-      if (!confirm("Delete ALL saved data from IndexedDB? This cannot be undone.")) return;
-      await idbClearAll();
+      if (!confirm("Delete ALL saved data and stored ISOs from OPFS? This cannot be undone.")) return;
+      await opfsClearAll();
       _lastPersistTime = 0;
       updateStorageInfo();
-      log("IndexedDB cleared.", "warn");
+      log("OPFS storage cleared.", "warn");
       showToast("🗑 All saved data cleared");
     });
 
@@ -2099,8 +2242,8 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     log("Build: " + BUILD_STAMP, "dim");
     probeWebGLFeatures();
     updateInfoPanel();
-    updateStorageInfo();    // populate IDB tab with stats on load
-    refreshSavesTab();      // populate Saves tab from IDB on load (no FS needed)
+    updateStorageInfo();    // populate OPFS tab with stats on load
+    refreshSavesTab();      // populate Saves tab from OPFS on load (no FS needed)
   </script>
 </body>
 </html>
