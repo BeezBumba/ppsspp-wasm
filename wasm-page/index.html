@@ -362,6 +362,81 @@
     .game-entry small { color: var(--muted); flex-shrink: 0; }
     .game-entry button { height: 21px; min-width: 48px; padding: 0 6px; font-size: 10px; margin-left: 6px; }
 
+    /* ── Library tab ────────────────────────────────────────────────── */
+    #libraryPanel {
+      flex: 1; min-height: 0; overflow-y: auto;
+      padding: 10px 12px 12px;
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+    }
+    .library-toolbar {
+      display: flex; align-items: center; gap: 6px;
+      padding-bottom: 10px; position: sticky; top: 0; z-index: 2;
+      background: var(--surface);
+    }
+    .library-toolbar button, .library-toolbar label.btn {
+      height: 28px; font-size: 11px; padding: 0 9px;
+    }
+    .library-count {
+      margin-left: auto; color: var(--muted); font-size: 10.5px;
+      white-space: nowrap;
+    }
+    #libraryEmpty {
+      padding: 28px 10px; color: var(--muted); font-size: 11.5px;
+      text-align: center; line-height: 1.8;
+    }
+    .library-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+      gap: 10px;
+      align-items: start;
+    }
+    .game-card {
+      min-width: 0; overflow: hidden;
+      border: 1px solid var(--border);
+      background: #0b0f13;
+      border-radius: var(--radius-sm);
+      transition: transform .12s, border-color .12s, background .12s;
+    }
+    .game-card:hover {
+      transform: translateY(-1px);
+      border-color: rgba(0,212,170,.45);
+      background: var(--surface2);
+    }
+    .game-cover {
+      position: relative; aspect-ratio: 16 / 9;
+      background: linear-gradient(135deg, #202832, #0b0f13 62%, #10352f);
+      overflow: hidden;
+    }
+    .game-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .game-cover-fallback {
+      height: 100%; padding: 12px;
+      display: flex; align-items: flex-end;
+      color: var(--text); font-size: 15px; line-height: 1.1; font-weight: 800;
+      text-transform: uppercase; word-break: break-word;
+    }
+    .game-cover-fallback::before {
+      content: "PSP"; position: absolute; top: 8px; right: 9px;
+      color: rgba(255,255,255,.22); font-size: 10px; font-weight: 800;
+      letter-spacing: .12em;
+    }
+    .game-card-body { padding: 8px; min-width: 0; }
+    .game-card-title {
+      color: var(--text); font-size: 11.5px; font-weight: 700; line-height: 1.25;
+      min-height: 30px; overflow: hidden;
+    }
+    .game-card-meta {
+      margin-top: 4px; color: var(--muted); font-size: 9.5px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .game-card-actions { display: flex; gap: 5px; margin-top: 8px; }
+    .game-card-actions button {
+      height: 25px; min-width: 0; padding: 0 8px; font-size: 10.5px;
+      flex: 1;
+    }
+    .game-card-actions button.icon-only {
+      flex: 0 0 25px; width: 25px; padding: 0;
+    }
+
     /* ── Saves tab ──────────────────────────────────────────────────── */
     #savesPanel {
       padding: 0; font-size: 11.5px;
@@ -515,51 +590,25 @@
       </div>
 
       <div class="tabs">
-        <div class="tab active" data-tab="log">Console</div>
-        <div class="tab"        data-tab="info">System</div>
+        <div class="tab active" data-tab="library">&#127918; Library</div>
         <div class="tab"        data-tab="saves">&#128190; Saves</div>
-        <div class="tab"        data-tab="storage">&#128191; OPFS</div>
+        <div class="tab"        data-tab="storage">&#128193; OPFS</div>
+        <div class="tab"        data-tab="info">&#9881; System</div>
+        <div class="tab"        data-tab="log">&#9000; Console</div>
       </div>
 
-      <div class="tab-panel active" id="tabLog">
-        <div id="logPanel"><pre id="log"></pre></div>
-        <div class="log-toolbar">
-          <input id="logFilter" placeholder="Filter&hellip;" type="search" autocomplete="off" spellcheck="false">
-          <button id="clearLogBtn" title="Clear">&#128465;</button>
-        </div>
-      </div>
-
-      <div class="tab-panel" id="tabInfo">
-        <div id="infoPanel">
-          <div class="info-group">
-            <h3>WebGL / GPU</h3>
-            <div class="info-row"><span class="info-key">Renderer</span>   <span class="info-val" id="iRenderer">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">Vendor</span>     <span class="info-val" id="iVendor">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">Version</span>    <span class="info-val" id="iVersion">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">GLSL</span>       <span class="info-val" id="iGlsl">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">Max Texture</span><span class="info-val" id="iMaxTex">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">Max Aniso</span>  <span class="info-val" id="iAniso">&#8212;</span></div>
+      <div class="tab-panel active" id="tabLibrary">
+        <div id="libraryPanel">
+          <div class="library-toolbar">
+            <button id="refreshLibraryBtn">&#8635; Refresh</button>
+            <label class="btn" id="libraryImportLabel">
+              &#128194; Add ISO
+              <input id="libraryImportFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
+            </label>
+            <span class="library-count" id="libraryCount">0 games</span>
           </div>
-          <div class="info-group">
-            <h3>Extensions</h3>
-            <div class="info-row"><span class="info-key">WebGL2</span>             <span class="info-val" id="iWebgl2">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">stencil_texturing</span>  <span class="info-val" id="iStencil">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">multi_draw</span>         <span class="info-val" id="iMultiDraw">&#8212;</span></div>
-          </div>
-          <div class="info-group">
-            <h3>Environment</h3>
-            <div class="info-row"><span class="info-key">crossOriginIsolated</span><span class="info-val" id="iCOI">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">SharedArrayBuffer</span>  <span class="info-val" id="iSAB">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">HW Concurrency</span>     <span class="info-val" id="iHWC">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">SIMD128</span>            <span class="info-val" id="iSIMD">&#8212;</span></div>
-          </div>
-          <div class="info-group">
-            <h3>Audio</h3>
-            <div class="info-row"><span class="info-key">AudioContext</span> <span class="info-val" id="iACtx">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">Sample Rate</span>  <span class="info-val" id="iASR">&#8212;</span></div>
-            <div class="info-row"><span class="info-key">SDL Callbacks</span><span class="info-val" id="iACB">0</span></div>
-            <div class="info-row"><span class="info-key">Peak Level</span>   <span class="info-val" id="iAPeak">0</span></div>
-          </div>
+          <div id="libraryEmpty">No games in OPFS yet.<br>Add an ISO or use Launch ROM once.</div>
+          <div id="libraryGrid" class="library-grid" style="display:none"></div>
         </div>
       </div>
 
@@ -607,6 +656,48 @@
         <div style="padding:4px 12px 2px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);margin-top:2px">Persisted Files</div>
         <div id="opfsFileList"><span style="padding:8px 12px;color:var(--muted);font-size:11px;display:block">Loading…</span></div>
       </div>
+
+      <div class="tab-panel" id="tabInfo">
+        <div id="infoPanel">
+          <div class="info-group">
+            <h3>WebGL / GPU</h3>
+            <div class="info-row"><span class="info-key">Renderer</span>   <span class="info-val" id="iRenderer">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Vendor</span>     <span class="info-val" id="iVendor">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Version</span>    <span class="info-val" id="iVersion">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">GLSL</span>       <span class="info-val" id="iGlsl">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Max Texture</span><span class="info-val" id="iMaxTex">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Max Aniso</span>  <span class="info-val" id="iAniso">&#8212;</span></div>
+          </div>
+          <div class="info-group">
+            <h3>Extensions</h3>
+            <div class="info-row"><span class="info-key">WebGL2</span>             <span class="info-val" id="iWebgl2">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">stencil_texturing</span>  <span class="info-val" id="iStencil">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">multi_draw</span>         <span class="info-val" id="iMultiDraw">&#8212;</span></div>
+          </div>
+          <div class="info-group">
+            <h3>Environment</h3>
+            <div class="info-row"><span class="info-key">crossOriginIsolated</span><span class="info-val" id="iCOI">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">SharedArrayBuffer</span>  <span class="info-val" id="iSAB">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">HW Concurrency</span>     <span class="info-val" id="iHWC">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">SIMD128</span>            <span class="info-val" id="iSIMD">&#8212;</span></div>
+          </div>
+          <div class="info-group">
+            <h3>Audio</h3>
+            <div class="info-row"><span class="info-key">AudioContext</span> <span class="info-val" id="iACtx">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Sample Rate</span>  <span class="info-val" id="iASR">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">SDL Callbacks</span><span class="info-val" id="iACB">0</span></div>
+            <div class="info-row"><span class="info-key">Peak Level</span>   <span class="info-val" id="iAPeak">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabLog">
+        <div id="logPanel"><pre id="log"></pre></div>
+        <div class="log-toolbar">
+          <input id="logFilter" placeholder="Filter&hellip;" type="search" autocomplete="off" spellcheck="false">
+          <button id="clearLogBtn" title="Clear">&#128465;</button>
+        </div>
+      </div>
     </aside>
   </div>
 
@@ -626,6 +717,7 @@
     const OPFS_ROOT_DIR       = "ppsspp-web";
     const OPFS_PERSIST_DIR    = "persist";
     const OPFS_GAMES_DIR      = "games";
+    const OPFS_GAME_META_DIR  = "game-meta";
     const PERSIST_SYNC_MS     = 30000; // auto-sync every 30 s
 
     /* ── DOM refs ───────────────────────────────────────────────────── */
@@ -734,8 +826,10 @@
       const root = await opfsRoot();
       try { await root.removeEntry(OPFS_PERSIST_DIR, { recursive: true }); } catch(e) {}
       try { await root.removeEntry(OPFS_GAMES_DIR, { recursive: true }); } catch(e) {}
+      try { await root.removeEntry(OPFS_GAME_META_DIR, { recursive: true }); } catch(e) {}
       await root.getDirectoryHandle(OPFS_PERSIST_DIR, { create: true });
       await root.getDirectoryHandle(OPFS_GAMES_DIR, { create: true });
+      await root.getDirectoryHandle(OPFS_GAME_META_DIR, { create: true });
     }
 
     async function opfsWalk(base = OPFS_PERSIST_DIR, prefix = "", includeData = true) {
@@ -769,6 +863,8 @@
       const writable = await handle.createWritable();
       await writable.write(data);
       await writable.close();
+      try { await writeGameMetadata(safe, data); }
+      catch(e) { log("Library metadata failed for " + safe + ": " + e.message, "warn"); }
       return safe;
     }
 
@@ -781,6 +877,7 @@
     async function opfsDeleteGame(name) {
       const { dir, name: fileName } = await opfsParent(name, false, OPFS_GAMES_DIR);
       await dir.removeEntry(fileName);
+      await deleteGameMetadata(name);
     }
 
     // Walk Emscripten FS recursively from root, return [{path, data}]
@@ -836,6 +933,175 @@
 
     function base64ToBytes(data) {
       return Uint8Array.from(atob(data), c => c.charCodeAt(0));
+    }
+
+    function stripGameExtension(name) {
+      return name.replace(/\.(iso|cso|pbp|elf|prx)$/i, "");
+    }
+
+    function prettyGameName(name) {
+      return stripGameExtension(name).replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim() || name;
+    }
+
+    function dataToObjectURL(data, type = "application/octet-stream") {
+      return URL.createObjectURL(new Blob([data], { type }));
+    }
+
+    function readIsoDirRecord(view, offset) {
+      const len = view.getUint8(offset);
+      if (!len) return null;
+      const extent = view.getUint32(offset + 2, true);
+      const size = view.getUint32(offset + 10, true);
+      const flags = view.getUint8(offset + 25);
+      const nameLen = view.getUint8(offset + 32);
+      let name = "";
+      for (let i = 0; i < nameLen; i++) name += String.fromCharCode(view.getUint8(offset + 33 + i));
+      name = name.replace(/;1$/i, "");
+      return { len, extent, size, flags, name };
+    }
+
+    function isoFindEntry(bytes, wantedPath) {
+      if (!bytes || bytes.byteLength < 17 * 2048) return null;
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const pvd = 16 * 2048;
+      if (view.getUint8(pvd) !== 1) return null;
+      let ident = "";
+      for (let i = 1; i < 6; i++) ident += String.fromCharCode(view.getUint8(pvd + i));
+      if (ident !== "CD001") return null;
+      const root = readIsoDirRecord(view, pvd + 156);
+      if (!root) return null;
+
+      const parts = wantedPath.toUpperCase().split("/").filter(Boolean);
+      let dir = root;
+      for (let depth = 0; depth < parts.length; depth++) {
+        const target = parts[depth];
+        const start = dir.extent * 2048;
+        const end = Math.min(start + dir.size, bytes.byteLength);
+        let found = null;
+
+        for (let off = start; off < end;) {
+          const len = view.getUint8(off);
+          if (!len) {
+            off = (Math.floor(off / 2048) + 1) * 2048;
+            continue;
+          }
+          const rec = readIsoDirRecord(view, off);
+          off += len;
+          if (!rec || rec.name === "\x00" || rec.name === "\x01") continue;
+          if (rec.name.toUpperCase() === target) {
+            found = rec;
+            break;
+          }
+        }
+
+        if (!found) return null;
+        if (depth < parts.length - 1 && !(found.flags & 2)) return null;
+        dir = found;
+      }
+
+      const dataStart = dir.extent * 2048;
+      if (dataStart + dir.size > bytes.byteLength) return null;
+      return bytes.slice(dataStart, dataStart + dir.size);
+    }
+
+    function parsePsfTitle(data) {
+      if (!data || data.byteLength < 20) return "";
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      if (view.getUint32(0, true) !== 0x46535000) return "";
+      const keyTable = view.getUint32(8, true);
+      const dataTable = view.getUint32(12, true);
+      const count = view.getUint32(16, true);
+      const decoder = new TextDecoder();
+
+      for (let i = 0; i < count; i++) {
+        const off = 20 + i * 16;
+        const keyOff = view.getUint16(off, true);
+        const dataLen = view.getUint32(off + 4, true);
+        const dataOff = view.getUint32(off + 12, true);
+        let keyEnd = keyTable + keyOff;
+        while (keyEnd < data.byteLength && data[keyEnd] !== 0) keyEnd++;
+        const key = decoder.decode(data.slice(keyTable + keyOff, keyEnd));
+        if (key !== "TITLE") continue;
+        const raw = data.slice(dataTable + dataOff, dataTable + dataOff + dataLen);
+        return decoder.decode(raw).replace(/\0+$/g, "").trim();
+      }
+      return "";
+    }
+
+    function extractIsoMetadata(name, data) {
+      const meta = {
+        fileName: name,
+        title: prettyGameName(name),
+        format: (name.split(".").pop() || "").toUpperCase(),
+        coverBytes: null,
+        coverType: "",
+      };
+      if (!/\.iso$/i.test(name)) return meta;
+
+      try {
+        const sfo = isoFindEntry(data, "PSP_GAME/PARAM.SFO");
+        const title = parsePsfTitle(sfo);
+        if (title) meta.title = title;
+      } catch(e) {}
+
+      try {
+        const icon = isoFindEntry(data, "PSP_GAME/ICON0.PNG");
+        if (icon?.byteLength) {
+          meta.coverBytes = icon;
+          meta.coverType = "image/png";
+        }
+      } catch(e) {}
+      return meta;
+    }
+
+    async function opfsMetaPut(path, data) {
+      const { dir, name } = await opfsParent(path, true, OPFS_GAME_META_DIR);
+      const handle = await dir.getFileHandle(name, { create: true });
+      const writable = await handle.createWritable();
+      await writable.write(data);
+      await writable.close();
+    }
+
+    async function opfsMetaRead(path) {
+      const { dir, name } = await opfsParent(path, false, OPFS_GAME_META_DIR);
+      const handle = await dir.getFileHandle(name);
+      return new Uint8Array(await (await handle.getFile()).arrayBuffer());
+    }
+
+    async function writeGameMetadata(name, data) {
+      const meta = extractIsoMetadata(name, data);
+      const json = {
+        fileName: meta.fileName,
+        title: meta.title,
+        format: meta.format,
+        coverType: meta.coverType,
+        updated: Date.now(),
+      };
+      await opfsMetaPut(name + ".json", new TextEncoder().encode(JSON.stringify(json)));
+      if (meta.coverBytes) await opfsMetaPut(name + ".cover", meta.coverBytes);
+    }
+
+    async function readGameMetadata(name) {
+      try {
+        const data = await opfsMetaRead(name + ".json");
+        return JSON.parse(new TextDecoder().decode(data));
+      } catch(e) {
+        return { fileName: name, title: prettyGameName(name), format: (name.split(".").pop() || "").toUpperCase(), coverType: "" };
+      }
+    }
+
+    async function readGameCoverURL(name, type) {
+      if (!type) return "";
+      try { return dataToObjectURL(await opfsMetaRead(name + ".cover"), type); }
+      catch(e) { return ""; }
+    }
+
+    async function deleteGameMetadata(name) {
+      const root = await opfsRoot();
+      let dir;
+      try { dir = await root.getDirectoryHandle(OPFS_GAME_META_DIR); } catch(e) { return; }
+      try { await dir.removeEntry(name + ".json"); } catch(e) {}
+      try { await dir.removeEntry(name + ".cover"); } catch(e) {}
     }
 
     // Categorize an OPFS path for the file browser
@@ -946,6 +1212,7 @@
         try { await opfsDeleteGame(name); } catch(e) {}
         if (window.FS) { try { window.FS.unlink(path); } catch(e) {} }
         showToast("🗑 Deleted " + name);
+        refreshLibrary();
         updateStorageInfo();
       } else {
         await deleteOpfsFile(path);
@@ -1003,6 +1270,113 @@
         refreshGamesList();
       } catch(e) {
         log("Stored ISO mount failed: " + e.message, "err");
+        showToast("❌ " + e.message);
+      }
+    }
+
+    let _libraryCoverURLs = [];
+
+    function clearLibraryCoverURLs() {
+      for (const url of _libraryCoverURLs) URL.revokeObjectURL(url);
+      _libraryCoverURLs = [];
+    }
+
+    async function ensureGameMetadata(name) {
+      const meta = await readGameMetadata(name);
+      if (meta.updated) return meta;
+      try {
+        const bytes = await opfsReadGame(name);
+        await writeGameMetadata(name, bytes);
+        return await readGameMetadata(name);
+      } catch(e) {
+        return meta;
+      }
+    }
+
+    function gameAccent(name) {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+      const hue = hash % 360;
+      const hue2 = (hue + 42) % 360;
+      return `linear-gradient(135deg, hsl(${hue} 42% 28%), hsl(${hue2} 50% 13%) 58%, #080a0c)`;
+    }
+
+    async function refreshLibrary() {
+      const grid = document.getElementById("libraryGrid");
+      const empty = document.getElementById("libraryEmpty");
+      const count = document.getElementById("libraryCount");
+      if (!grid || !empty) return;
+
+      clearLibraryCoverURLs();
+      grid.style.display = "none";
+      empty.style.display = "block";
+      empty.textContent = "Loading library…";
+
+      try {
+        const games = await opfsWalk(OPFS_GAMES_DIR, "", false);
+        games.sort((a, b) => a.path.localeCompare(b.path));
+        if (count) count.textContent = games.length + " game" + (games.length === 1 ? "" : "s");
+
+        if (!games.length) {
+          empty.innerHTML = "No games in OPFS yet.<br>Add an ISO or use Launch ROM once.";
+          return;
+        }
+
+        const cards = [];
+        for (const game of games) {
+          const meta = await ensureGameMetadata(game.path);
+          const coverURL = await readGameCoverURL(game.path, meta.coverType);
+          if (coverURL) _libraryCoverURLs.push(coverURL);
+          const title = meta.title || prettyGameName(game.path);
+          const format = meta.format || (game.path.split(".").pop() || "").toUpperCase();
+          const mounted = !!window.FS?.analyzePath?.(VIRTUAL_GAME_DIR + "/" + game.path).exists;
+          const primary = started ? (mounted ? "Ready" : "Mount") : "Select";
+          const fallback = title.split(/\s+/).slice(0, 4).join(" ");
+          cards.push(`
+            <div class="game-card">
+              <div class="game-cover" style="background:${gameAccent(game.path)}">
+                ${coverURL
+                  ? `<img src="${coverURL}" alt="${esc(title)} cover" loading="lazy">`
+                  : `<div class="game-cover-fallback">${esc(fallback)}</div>`}
+              </div>
+              <div class="game-card-body">
+                <div class="game-card-title" title="${esc(title)}">${esc(title)}</div>
+                <div class="game-card-meta" title="${esc(game.path)}">${esc(format)} · ${formatBytes(game.size || 0)}</div>
+                <div class="game-card-actions">
+                  <button onclick="mountOrSelectStoredGame(${JSON.stringify(game.path)})">${primary}</button>
+                  <button class="icon-only" title="Download" onclick="downloadStoredFile(${JSON.stringify(VIRTUAL_GAME_DIR + "/" + game.path)})">&#11123;</button>
+                  <button class="icon-only danger" title="Delete" onclick="deleteStoredFile(${JSON.stringify(VIRTUAL_GAME_DIR + "/" + game.path)})">&#128465;</button>
+                </div>
+              </div>
+            </div>
+          `);
+        }
+
+        empty.style.display = "none";
+        grid.style.display = "grid";
+        grid.innerHTML = cards.join("");
+      } catch(e) {
+        empty.textContent = "Library error: " + e.message;
+        if (count) count.textContent = "0 games";
+      }
+    }
+
+    async function addGameToLibrary(file) {
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      showToast("Adding " + file.name + "…");
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const storedName = await opfsPutGame(file.name, bytes);
+        if (window.FS) {
+          window.FS.mkdirTree(VIRTUAL_GAME_DIR);
+          window.FS.writeFile(VIRTUAL_GAME_DIR + "/" + storedName, bytes);
+        }
+        log("Library: added " + storedName + " to OPFS.", "ok");
+        showToast("✓ Added " + storedName);
+        await refreshLibrary();
+        updateStorageInfo();
+      } catch(e) {
+        log("Library add failed: " + e.message, "err");
         showToast("❌ " + e.message);
       }
     }
@@ -1347,6 +1721,63 @@
       } catch(e) { log("Persistence: OPFS load error: " + e.message, "warn"); }
     }
 
+    function patchIniValue(text, section, key, value) {
+      const lines = text ? text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n") : [];
+      const sectionHeader = "[" + section + "]";
+      const sectionRe = /^\s*\[([^\]]+)\]\s*$/;
+      const keyRe = new RegExp("^\\s*" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*=");
+      let sectionStart = -1;
+      let sectionEnd = lines.length;
+
+      for (let i = 0; i < lines.length; i++) {
+        const match = lines[i].match(sectionRe);
+        if (!match) continue;
+        if (match[1] === section) {
+          sectionStart = i;
+          for (let j = i + 1; j < lines.length; j++) {
+            if (sectionRe.test(lines[j])) { sectionEnd = j; break; }
+          }
+          break;
+        }
+      }
+
+      if (sectionStart === -1) {
+        if (lines.length && lines[lines.length - 1] !== "") lines.push("");
+        lines.push(sectionHeader, key + " = " + value);
+      } else {
+        for (let i = sectionStart + 1; i < sectionEnd; i++) {
+          if (keyRe.test(lines[i])) {
+            lines[i] = key + " = " + value;
+            return lines.join("\n").replace(/\n*$/, "\n");
+          }
+        }
+        lines.splice(sectionEnd, 0, key + " = " + value);
+      }
+
+      return lines.join("\n").replace(/\n*$/, "\n");
+    }
+
+    async function forceGamesDirectoryConfig(FS) {
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder();
+
+      for (const root of PERSIST_ROOTS) {
+        const iniPath = root + "/PSP/SYSTEM/ppsspp.ini";
+        try {
+          fsMkdirP(FS, root + "/PSP/SYSTEM");
+          let text = "";
+          try { text = decoder.decode(FS.readFile(iniPath)); } catch(e) {}
+          const patched = patchIniValue(text, "General", "CurrentDirectory", VIRTUAL_GAME_DIR);
+          const bytes = encoder.encode(patched);
+          FS.writeFile(iniPath, bytes);
+          await opfsPut(iniPath, bytes);
+          log("Config: default game browser directory set to " + VIRTUAL_GAME_DIR + " in " + iniPath, "ok");
+        } catch(e) {
+          log("Config: failed to set game browser directory at " + iniPath + ": " + e.message, "warn");
+        }
+      }
+    }
+
     // Save config+saves from Emscripten FS to OPFS
     async function persistFiles(FS, label) {
       _detectedMemstick = detectMemstickDir(FS);
@@ -1432,6 +1863,8 @@
         await opfsPutGame(file.name, bytes);
         log("ISO ready at " + path + " and saved to OPFS. Open it from PPSSPP\u2019s game browser (Home \u2192 Games).", "ok");
         showToast("✓ " + file.name + " loaded → open from PPSSPP game browser", 5000);
+        refreshLibrary();
+        updateStorageInfo();
         refreshGamesList();
       } catch(e) { log("Runtime ISO load failed: " + e.message, "err"); showToast("❌ " + e.message); }
     }
@@ -1609,7 +2042,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       return "";
     }
 
-    function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+    function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 
     function buildLineHtml(rawLine, forceLevel) {
       const m   = rawLine.match(/^(\[\d{1,2}:\d{2}:\d{2}\]) (.*)$/s);
@@ -1999,6 +2432,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
         tab.classList.add("active");
         const id = "tab" + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
         document.getElementById(id).classList.add("active");
+        if (tab.dataset.tab === "library") refreshLibrary();
       });
     });
 
@@ -2074,6 +2508,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
               showLoading("Restoring saves\u2026");
               await loadPersistedFiles(FS);
               await preloadStoredGames(FS);
+              await forceGamesDirectoryConfig(FS);
               gameArg = await preloadGame(FS);
               Module.arguments.length = 0;
               if (gameArg) Module.arguments.push(gameArg);
@@ -2099,6 +2534,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
           // Start auto-persist loop (every 30s)
           startAutoPersist();
           updateStorageInfo();
+          refreshLibrary();
           setTimeout(describeAudio, 1000);
           setInterval(reportAudioStatus, 5000);
           setInterval(updateInfoPanel,   2000);
@@ -2132,6 +2568,13 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     });
 
     startBtn.addEventListener("click", start);
+
+    document.getElementById("refreshLibraryBtn").addEventListener("click", refreshLibrary);
+    document.getElementById("libraryImportFile").addEventListener("change", e => {
+      const f = e.target.files[0]; if (!f) return;
+      e.target.value = "";
+      addGameToLibrary(f);
+    });
 
     // ── Runtime ISO loading ──────────────────────────────────────────
     document.getElementById("runtimeIsoFile").addEventListener("change", e => {
@@ -2201,6 +2644,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       if (!confirm("Delete ALL saved data and stored ISOs from OPFS? This cannot be undone.")) return;
       await opfsClearAll();
       _lastPersistTime = 0;
+      refreshLibrary();
       updateStorageInfo();
       log("OPFS storage cleared.", "warn");
       showToast("🗑 All saved data cleared");
@@ -2242,6 +2686,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     log("Build: " + BUILD_STAMP, "dim");
     probeWebGLFeatures();
     updateInfoPanel();
+    refreshLibrary();
     updateStorageInfo();    // populate OPFS tab with stats on load
     refreshSavesTab();      // populate Saves tab from OPFS on load (no FS needed)
   </script>
