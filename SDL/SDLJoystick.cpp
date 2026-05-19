@@ -83,8 +83,13 @@ void SDLJoystick::setUpController(int deviceIndex) {
 	SDL_GameController *controller = SDL_GameControllerOpen(deviceIndex);
 	if (controller) {
 		if (SDL_GameControllerGetAttached(controller)) {
+			SDL_JoystickID instanceID = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller));
+			if (controllerDeviceMap.find(instanceID) != controllerDeviceMap.end()) {
+				SDL_GameControllerClose(controller);
+				return;
+			}
 			controllers.push_back(controller);
-			controllerDeviceMap[SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller))] = deviceIndex;
+			controllerDeviceMap[instanceID] = deviceIndex;
 			INFO_LOG(Log::System, "found control pad: %s, loading mapping", SDL_GameControllerName(controller));
 			// NOTE: The case to InputDeviceID here is wrong, we should do some kind of lookup.
 			KeyMap::NotifyPadConnected((InputDeviceID)deviceIndex, std::string(pszGUID) + ": " + SDL_GameControllerName(controller));
@@ -177,11 +182,12 @@ void SDLJoystick::ProcessInput(const SDL_Event &event){
 	case SDL_CONTROLLERBUTTONDOWN:
 		if (event.cbutton.state == SDL_PRESSED) {
 			auto code = getKeycodeForButton((SDL_GameControllerButton)event.cbutton.button);
-			if (code != NKCODE_UNKNOWN) {
+			int deviceIndex = getDeviceIndex(event.cbutton.which);
+			if (code != NKCODE_UNKNOWN && deviceIndex >= 0) {
 				KeyInput key;
 				key.flags = KeyInputFlags::DOWN;
 				key.keyCode = code;
-				key.deviceId = DEVICE_ID_PAD_0 + getDeviceIndex(event.cbutton.which);
+				key.deviceId = DEVICE_ID_PAD_0 + deviceIndex;
 				NativeKey(key);
 			}
 		}
@@ -189,18 +195,23 @@ void SDLJoystick::ProcessInput(const SDL_Event &event){
 	case SDL_CONTROLLERBUTTONUP:
 		if (event.cbutton.state == SDL_RELEASED) {
 			auto code = getKeycodeForButton((SDL_GameControllerButton)event.cbutton.button);
-			if (code != NKCODE_UNKNOWN) {
+			int deviceIndex = getDeviceIndex(event.cbutton.which);
+			if (code != NKCODE_UNKNOWN && deviceIndex >= 0) {
 				KeyInput key;
 				key.flags = KeyInputFlags::UP;
 				key.keyCode = code;
-				key.deviceId = DEVICE_ID_PAD_0 + getDeviceIndex(event.cbutton.which);
+				key.deviceId = DEVICE_ID_PAD_0 + deviceIndex;
 				NativeKey(key);
 			}
 		}
 		break;
 	case SDL_CONTROLLERAXISMOTION:
 	{
-		InputDeviceID deviceId = DEVICE_ID_PAD_0 + getDeviceIndex(event.caxis.which);
+		int deviceIndex = getDeviceIndex(event.caxis.which);
+		if (deviceIndex < 0) {
+			break;
+		}
+		InputDeviceID deviceId = DEVICE_ID_PAD_0 + deviceIndex;
 		// TODO: Can we really cast axis IDs like that? Do they match?
 		InputAxis axisId = (InputAxis)event.caxis.axis;
 		float value = event.caxis.value * (1.f / 32767.f);
@@ -225,8 +236,13 @@ void SDLJoystick::ProcessInput(const SDL_Event &event){
 		// for removal events, "which" is the instance ID for SDL_CONTROLLERDEVICEREMOVED
 		for (auto it = controllers.begin(); it != controllers.end(); ++it) {
 			if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(*it)) == event.cdevice.which) {
+				int deviceIndex = getDeviceIndex(event.cdevice.which);
 				SDL_GameControllerClose(*it);
 				controllers.erase(it);
+				controllerDeviceMap.erase(event.cdevice.which);
+				if (deviceIndex >= 0) {
+					KeyMap::NotifyPadDisconnected((InputDeviceID)deviceIndex);
+				}
 				break;
 			}
 		}

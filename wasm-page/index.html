@@ -576,7 +576,9 @@
 
     <div class="hbar-group">
       <button id="fullscreenBtn" class="icon-btn" title="Fullscreen">&#x26F6;</button>
-      <button id="gamepadBtn"    title="Scan / reconnect gamepad">&#127918;<span class="btn-lbl"> Gamepad</span></button>
+      <select id="gamepadSelect" class="btn" title="Active controller">
+        <option value="-1">All controllers</option>
+      </select>
     </div>
 
     <div class="hbar-sep gpu-sep"></div>
@@ -776,6 +778,7 @@
     const fpsBadge        = document.getElementById("fpsBadge");
     const gpuBadge        = document.getElementById("gpuBadge");
     const gamepadBadge    = document.getElementById("gamepadBadge");
+    const gamepadSelect   = document.getElementById("gamepadSelect");
     const gpuSelectEl     = document.getElementById("gpuSelect");
     const panelToggleBtn  = document.getElementById("panelToggleBtn");
 
@@ -2387,15 +2390,134 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
 
     /* ── Gamepad ────────────────────────────────────────────────────── */
     const connectedGamepads = new Map();
+    const GAMEPAD_POLL_MS = 1000;
+    const GAMEPAD_SDL_RECONNECT_MS = 5000;
+    const GAMEPAD_SELECT_KEY = "ppsspp_active_gamepad_index";
+    let gamepadPollTimer = 0;
+    let activeGamepadIndex = Number(localStorage.getItem(GAMEPAD_SELECT_KEY) ?? -1);
+    if (!Number.isInteger(activeGamepadIndex)) activeGamepadIndex = -1;
+    window.__ppssppActiveGamepadIndex = activeGamepadIndex;
+    const nativeGetGamepads = navigator.getGamepads ? navigator.getGamepads.bind(navigator) : null;
+
+    function installGamepadSelectionFilter() {
+      if (!nativeGetGamepads || navigator.__ppssppGamepadFiltered) return;
+      try {
+        Object.defineProperty(navigator, "__ppssppGamepadFiltered", { value: true });
+        navigator.getGamepads = function() {
+          const pads = nativeGetGamepads();
+          if (!pads || !isActiveGamepadPresent()) return pads;
+
+          const filtered = Array.from(pads);
+          for (let i = 0; i < filtered.length; i++) {
+            if (filtered[i] && filtered[i].index !== window.__ppssppActiveGamepadIndex)
+              filtered[i] = null;
+          }
+          return filtered;
+        };
+      } catch(e) {
+        log("GAMEPAD: controller filter unavailable in this browser: " + (e?.message || e), "warn");
+      }
+    }
+
+    function isActiveGamepadPresent() {
+      if (window.__ppssppActiveGamepadIndex < 0) return false;
+      if (connectedGamepads.has(window.__ppssppActiveGamepadIndex)) return true;
+      try {
+        return !!nativeGetGamepads?.().find(gp => gp && gp.connected !== false && gp.index === window.__ppssppActiveGamepadIndex);
+      } catch(e) {
+        return false;
+      }
+    }
+
+    function shouldHideGamepadFromSDL(gp) {
+      return !!gp && isActiveGamepadPresent() && gp.index !== window.__ppssppActiveGamepadIndex;
+    }
+
+    window.addEventListener("gamepadconnected", e => {
+      if (shouldHideGamepadFromSDL(e.gamepad)) {
+        e.stopImmediatePropagation();
+        rememberGamepad(e.gamepad, "available", { refreshSDL: false });
+      }
+    }, true);
+    window.addEventListener("gamepaddisconnected", e => {
+      if (shouldHideGamepadFromSDL(e.gamepad)) {
+        e.stopImmediatePropagation();
+        connectedGamepads.delete(e.gamepad.index);
+        updateGamepadSelector();
+      }
+    }, true);
+
+    function redispatchSelectedGamepadConnection(reason) {
+      if (activeGamepadIndex < 0 || typeof GamepadEvent !== "function") return;
+      const gp = connectedGamepads.get(activeGamepadIndex) || getBrowserGamepads().find(p => p.index === activeGamepadIndex);
+      if (!gp) return;
+      try {
+        const ev = new GamepadEvent("gamepadconnected", { gamepad: gp });
+        ev.__ppssppSynthetic = true;
+        window.dispatchEvent(ev);
+        log('GAMEPAD selected controller exposed to SDL: [' + gp.index + '] "' + gp.id + '" (' + reason + ')', "info");
+      } catch(e) {
+      }
+    }
+
+    function shortGamepadName(id) {
+      return (id || "Gamepad").replace(/\s+/g, " ").trim().slice(0, 34);
+    }
 
     function updateGamepadBadge() {
       const n = connectedGamepads.size;
       if (n === 0) { gamepadBadge.textContent = "\uD83C\uDFAE No controller"; gamepadBadge.className = "badge"; }
       else {
-        const names = [...connectedGamepads.values()].map(g => g.id.slice(0,22)).join(", ");
+        const active = connectedGamepads.get(activeGamepadIndex);
+        const names = activeGamepadIndex >= 0 && active
+          ? "Active: " + shortGamepadName(active.id).slice(0, 22)
+          : [...connectedGamepads.values()].map(g => shortGamepadName(g.id).slice(0,22)).join(", ");
         gamepadBadge.textContent = "\uD83C\uDFAE " + n + ": " + names;
         gamepadBadge.className   = "badge active";
       }
+    }
+
+    function updateGamepadSelector() {
+      const previous = String(activeGamepadIndex);
+      gamepadSelect.innerHTML = "";
+
+      const auto = document.createElement("option");
+      auto.value = "-1";
+      auto.textContent = "All controllers";
+      gamepadSelect.appendChild(auto);
+
+      const sorted = [...connectedGamepads.values()].sort((a, b) => a.index - b.index);
+      for (const gp of sorted) {
+        const opt = document.createElement("option");
+        opt.value = String(gp.index);
+        opt.textContent = "Pad " + (gp.index + 1) + ": " + shortGamepadName(gp.id);
+        gamepadSelect.appendChild(opt);
+      }
+
+      if (activeGamepadIndex >= 0 && !connectedGamepads.has(activeGamepadIndex)) {
+        const missing = document.createElement("option");
+        missing.value = previous;
+        missing.textContent = "Pad " + (activeGamepadIndex + 1) + " (waiting)";
+        gamepadSelect.appendChild(missing);
+      }
+
+      gamepadSelect.value = previous;
+      gamepadSelect.disabled = !navigator.getGamepads;
+      updateGamepadBadge();
+    }
+
+    function setActiveGamepadIndex(index, source = "selector") {
+      activeGamepadIndex = Number.isInteger(index) ? index : -1;
+      window.__ppssppActiveGamepadIndex = activeGamepadIndex;
+      localStorage.setItem(GAMEPAD_SELECT_KEY, String(activeGamepadIndex));
+
+      const gp = connectedGamepads.get(activeGamepadIndex);
+      const label = activeGamepadIndex < 0 ? "All controllers" : (gp ? shortGamepadName(gp.id) : "Pad " + (activeGamepadIndex + 1));
+      log("GAMEPAD active controller: " + label + " (" + source + ")", "info");
+      updateGamepadSelector();
+      reconnectKnownGamepadsForSDL("controller select", true);
+      redispatchSelectedGamepadConnection("controller select");
+      canvas.focus();
     }
 
     function flashGamepadBadge() {
@@ -2404,38 +2526,134 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       setTimeout(() => { gamepadBadge.style.transition = ""; gamepadBadge.style.outline = ""; }, 800);
     }
 
+    function getBrowserGamepads() {
+      try {
+        return nativeGetGamepads ? Array.from(nativeGetGamepads()).filter(Boolean) : [];
+      } catch(e) {
+        log("GAMEPAD: scan failed: " + (e?.message || e), "warn");
+        return [];
+      }
+    }
+
+    function gamepadInfo(gp) {
+      return {
+        id: gp.id || "Gamepad",
+        index: gp.index,
+        mapping: gp.mapping || "",
+        axes: gp.axes?.length || 0,
+        buttons: gp.buttons?.length || 0,
+        timestamp: gp.timestamp || 0,
+        lastSeen: performance.now(),
+        lastSDLReconnect: connectedGamepads.get(gp.index)?.lastSDLReconnect || 0,
+      };
+    }
+
+    function dispatchSDLGamepadReconnect(gp, reason, force = false) {
+      const state = connectedGamepads.get(gp.index);
+      if (!started || !window.Module || !state) return false;
+
+      const now = performance.now();
+      if (!force && now - state.lastSDLReconnect < GAMEPAD_SDL_RECONNECT_MS) return false;
+      state.lastSDLReconnect = now;
+
+      try {
+        if (typeof GamepadEvent !== "function") return false;
+        const ev = new GamepadEvent("gamepadconnected", { gamepad: gp });
+        ev.__ppssppSynthetic = true;
+        window.dispatchEvent(ev);
+        log('GAMEPAD reconnect hint for SDL: [' + gp.index + '] "' + gp.id + '" (' + reason + ')', "info");
+        return true;
+      } catch(e) {
+        return false;
+      }
+    }
+
+    function rememberGamepad(gp, source, options = {}) {
+      if (!gp || gp.connected === false) return false;
+
+      const prev = connectedGamepads.get(gp.index);
+      const next = gamepadInfo(gp);
+      if (prev) {
+        next.lastSDLReconnect = prev.lastSDLReconnect;
+        connectedGamepads.set(gp.index, next);
+        return false;
+      }
+
+      connectedGamepads.set(gp.index, next);
+      log('GAMEPAD ' + source + ': [' + gp.index + '] "' + gp.id + '" axes=' + next.axes + ' buttons=' + next.buttons + ' mapping="' + next.mapping + '"', "ok");
+      updateGamepadSelector();
+      flashGamepadBadge();
+      if (options.refreshSDL) dispatchSDLGamepadReconnect(gp, source, options.forceSDL);
+      return true;
+    }
+
+    function reconcileGamepads(source = "scan", options = {}) {
+      const pads = getBrowserGamepads();
+      const present = new Set();
+      for (const gp of pads) {
+        if (!gp || gp.connected === false) continue;
+        present.add(gp.index);
+        rememberGamepad(gp, source, options);
+      }
+
+      let removed = false;
+      for (const [index, state] of connectedGamepads) {
+        if (!present.has(index)) {
+          connectedGamepads.delete(index);
+          removed = true;
+          log('GAMEPAD missing: [' + index + '] "' + state.id + '"');
+        }
+      }
+
+      if (removed || pads.length) updateGamepadSelector();
+      if (!pads.length && options.verbose)
+        log("GAMEPAD: no controller detected. Press a button once if the browser is hiding it.", "warn");
+      return pads.length;
+    }
+
+    function reconnectKnownGamepadsForSDL(reason, force = false) {
+      let n = 0;
+      for (const gp of getBrowserGamepads()) {
+        if (!gp || gp.connected === false) continue;
+        rememberGamepad(gp, reason);
+        if (dispatchSDLGamepadReconnect(gp, reason, force)) n++;
+      }
+      if (n > 0) {
+        canvas.focus();
+        flashGamepadBadge();
+      }
+      return n;
+    }
+
+    function startSmartGamepadPolling() {
+      if (gamepadPollTimer || !navigator.getGamepads) return;
+      reconcileGamepads("startup scan");
+      gamepadPollTimer = setInterval(() => {
+        reconcileGamepads("runtime scan", { refreshSDL: true });
+      }, GAMEPAD_POLL_MS);
+    }
+
     function onGamepadConnected(e) {
       const gp = e.gamepad;
-      connectedGamepads.set(gp.index, { id: gp.id, index: gp.index });
-      log('GAMEPAD connected: [' + gp.index + '] "' + gp.id + '" axes=' + gp.axes.length + ' buttons=' + gp.buttons.length + ' mapping="' + gp.mapping + '"', "ok");
-      updateGamepadBadge();
-      flashGamepadBadge();
-      // Keep canvas focused so SDL receives gamepad events
+      rememberGamepad(gp, e.__ppssppSynthetic ? "refreshed" : "connected", { refreshSDL: false });
       canvas.focus();
     }
     function onGamepadDisconnected(e) {
       const gp = e.gamepad; connectedGamepads.delete(gp.index);
       log('GAMEPAD disconnected: [' + gp.index + '] "' + gp.id + '"');
-      updateGamepadBadge();
+      updateGamepadSelector();
     }
     window.addEventListener("gamepadconnected",    onGamepadConnected);
     window.addEventListener("gamepaddisconnected", onGamepadDisconnected);
 
     function probeExistingGamepads() {
-      if (!navigator.getGamepads) return;
-      for (const gp of navigator.getGamepads()) {
-        if (gp && !connectedGamepads.has(gp.index)) {
-          connectedGamepads.set(gp.index, { id: gp.id, index: gp.index });
-          log('GAMEPAD present: [' + gp.index + '] "' + gp.id + '" axes=' + gp.axes.length + ' buttons=' + gp.buttons.length);
-        }
-      }
-      updateGamepadBadge();
+      reconcileGamepads("present", { verbose: true, refreshSDL: true, forceSDL: true });
     }
 
     function showGamepadDiag() {
       if (!navigator.getGamepads) { log("GAMEPAD: navigator.getGamepads API unavailable.", "warn"); return; }
       let found = 0;
-      for (const gp of navigator.getGamepads()) {
+      for (const gp of getBrowserGamepads()) {
         if (!gp) continue; found++;
         const axes = Array.from(gp.axes).map(v=>v.toFixed(2)).join(", ");
         const btns = Array.from(gp.buttons).map((b,i)=>b.pressed?"B"+i+"("+b.value.toFixed(2)+")":null).filter(Boolean).join(", ")||"none";
@@ -2446,13 +2664,27 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       if (!found) log("GAMEPAD: no controller detected — press a button on your controller first.", "warn");
     }
 
-    document.getElementById("gamepadBtn").addEventListener("click", () => {
-      probeExistingGamepads();
-      showGamepadDiag();
-      // Always re-focus the canvas so SDL picks up the gamepad
-      canvas.focus();
-      if (connectedGamepads.size > 0) flashGamepadBadge();
+    gamepadSelect.addEventListener("change", () => {
+      const index = Number(gamepadSelect.value);
+      setActiveGamepadIndex(Number.isInteger(index) ? index : -1);
     });
+    gamepadSelect.addEventListener("pointerdown", () => {
+      probeExistingGamepads();
+      reconnectKnownGamepadsForSDL("controller menu", false);
+    });
+    gamepadSelect.addEventListener("focus", () => {
+      probeExistingGamepads();
+    });
+    window.addEventListener("focus", () => {
+      startSmartGamepadPolling();
+      reconnectKnownGamepadsForSDL("window focus");
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) reconnectKnownGamepadsForSDL("page visible");
+    });
+    installGamepadSelectionFilter();
+    updateGamepadSelector();
+    startSmartGamepadPolling();
 
     /* ── GPU probe ──────────────────────────────────────────────────── */
     function probeWebGLFeaturesWithPref(powerPreference) {
@@ -2701,6 +2933,8 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
           refreshLibrary();
           setTimeout(() => setStatus(gameArg ? "Game running" : "Library ready", "ok"), 600);
           setTimeout(describeAudio, 1000);
+          setTimeout(() => reconnectKnownGamepadsForSDL("runtime ready", true), 300);
+          setTimeout(() => reconnectKnownGamepadsForSDL("runtime settled", true), 1500);
           setInterval(reportAudioStatus, 5000);
           setInterval(updateInfoPanel,   2000);
           // Initial persist after PPSSPP creates its directories
