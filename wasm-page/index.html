@@ -356,11 +356,6 @@
     }
     button.danger { border-color: rgba(255,95,95,.35); color: var(--danger); }
     button.danger:hover { background: rgba(255,95,95,.1); border-color: var(--danger); }
-    #gamesList { color: var(--muted); font-size: 11px; line-height: 1.8; }
-    .game-entry { display: flex; justify-content: space-between; align-items: center; }
-    .game-entry span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-    .game-entry small { color: var(--muted); flex-shrink: 0; }
-    .game-entry button { height: 21px; min-width: 48px; padding: 0 6px; font-size: 10px; margin-left: 6px; }
 
     /* ── Library tab ────────────────────────────────────────────────── */
     #libraryPanel {
@@ -369,13 +364,21 @@
       scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
     }
     .library-toolbar {
-      display: flex; align-items: center; gap: 6px;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
       padding-bottom: 10px; position: sticky; top: 0; z-index: 2;
       background: var(--surface);
     }
     .library-toolbar button, .library-toolbar label.btn {
       height: 28px; font-size: 11px; padding: 0 9px;
     }
+    #libraryUrlInput {
+      flex: 1 1 150px; min-width: 0; height: 28px;
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: var(--radius-sm); color: var(--text);
+      font: 11px/1 inherit; padding: 0 8px; outline: none;
+    }
+    #libraryUrlInput:focus { border-color: var(--accent); box-shadow: var(--glow); }
+    #libraryUrlInput::placeholder { color: var(--muted); }
     .library-count {
       margin-left: auto; color: var(--muted); font-size: 10.5px;
       white-space: nowrap;
@@ -433,9 +436,33 @@
       height: 25px; min-width: 0; padding: 0 8px; font-size: 10.5px;
       flex: 1;
     }
+    .game-card-actions button:disabled {
+      opacity: .45; cursor: default; transform: none;
+    }
     .game-card-actions button.icon-only {
       flex: 0 0 25px; width: 25px; padding: 0;
     }
+    #gameInfoModal {
+      position: fixed; inset: 0; z-index: 9998;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.62); padding: 18px;
+    }
+    #gameInfoModal.visible { display: flex; }
+    .game-info-dialog {
+      width: min(360px, 100%); max-height: min(520px, calc(100dvh - 36px));
+      overflow: auto; background: var(--surface);
+      border: 1px solid var(--border2); border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
+    }
+    .game-info-cover { aspect-ratio: 16 / 9; background: var(--surface2); overflow: hidden; }
+    .game-info-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .game-info-body { padding: 12px; }
+    .game-info-title { color: var(--text); font-size: 15px; font-weight: 800; line-height: 1.25; margin-bottom: 10px; }
+    .game-info-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px solid var(--border); font-size: 11px; }
+    .game-info-row span:first-child { color: var(--muted); flex-shrink: 0; }
+    .game-info-row span:last-child { color: var(--text); min-width: 0; overflow-wrap: anywhere; text-align: right; }
+    .game-info-actions { display: flex; gap: 6px; padding: 0 12px 12px; }
+    .game-info-actions button { flex: 1; height: 28px; font-size: 11px; }
 
     /* ── Saves tab ──────────────────────────────────────────────────── */
     #savesPanel {
@@ -605,6 +632,8 @@
               &#128194; Add ISO
               <input id="libraryImportFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
             </label>
+            <input id="libraryUrlInput" type="url" placeholder="https://.../game.iso" autocomplete="off" spellcheck="false">
+            <button id="libraryDownloadUrlBtn">&#128279; Download</button>
             <span class="library-count" id="libraryCount">0 games</span>
           </div>
           <div id="libraryEmpty">No games in OPFS yet.<br>Add an ISO or use Launch ROM once.</div>
@@ -647,10 +676,6 @@
               <input id="importSavesFile" type="file" accept=".ppsspp,.json">
             </label>
             <button id="clearStorageBtn" class="danger">&#128465; Clear All Saved Data</button>
-          </div>
-          <div class="info-group">
-            <h3>Games in /games</h3>
-            <div id="gamesList" style="color:var(--muted);font-size:11px;line-height:1.8">None loaded</div>
           </div>
         </div>
         <div style="padding:4px 12px 2px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);margin-top:2px">Persisted Files</div>
@@ -702,6 +727,19 @@
   </div>
 
   <div id="toast"></div>
+  <div id="gameInfoModal" aria-hidden="true">
+    <div class="game-info-dialog" role="dialog" aria-modal="true" aria-labelledby="gameInfoTitle">
+      <div class="game-info-cover" id="gameInfoCover"></div>
+      <div class="game-info-body">
+        <div class="game-info-title" id="gameInfoTitle"></div>
+        <div id="gameInfoRows"></div>
+      </div>
+      <div class="game-info-actions">
+        <button id="gameInfoPlayBtn">Play</button>
+        <button id="gameInfoCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     /* ── Constants ──────────────────────────────────────────────────── */
@@ -1189,7 +1227,6 @@
           }
         }
       } catch(e) { log("OPFS storage info error: " + e.message, "warn"); }
-      refreshGamesList();
     }
 
     async function downloadStoredFile(path) {
@@ -1209,53 +1246,30 @@
       if (path.startsWith(VIRTUAL_GAME_DIR + "/")) {
         const name = path.slice((VIRTUAL_GAME_DIR + "/").length);
         if (!confirm("Delete ISO from OPFS:\n" + name + "?")) return;
-        try { await opfsDeleteGame(name); } catch(e) {}
-        if (window.FS) { try { window.FS.unlink(path); } catch(e) {} }
-        showToast("🗑 Deleted " + name);
-        refreshLibrary();
-        updateStorageInfo();
+        try {
+          await opfsDeleteGame(name);
+          if (window.FS) { try { window.FS.unlink(path); } catch(e) {} }
+          showToast("🗑 Deleted " + name);
+          await refreshLibrary();
+          updateStorageInfo();
+        } catch(e) {
+          log("Delete ISO failed: " + e.message, "err");
+          showToast("❌ Delete failed: " + e.message);
+        }
       } else {
         await deleteOpfsFile(path);
       }
     }
 
-    async function refreshGamesList() {
-      const FS  = window.FS;
-      const el  = document.getElementById("gamesList");
-      if (!el) return;
-      try {
-        const names = new Map();
-        const storedNames = new Set();
-        if (FS) {
-          for (const n of FS.readdir(VIRTUAL_GAME_DIR).filter(n => n !== "." && n !== "..")) {
-            let size = 0;
-            try { size = FS.stat(VIRTUAL_GAME_DIR + "/" + n).size; } catch(e) {}
-            names.set(n, size);
-          }
-        }
-        for (const g of await opfsWalk(OPFS_GAMES_DIR, "", false)) {
-          storedNames.add(g.path);
-          if (!names.has(g.path)) names.set(g.path, g.size || g.data?.byteLength || 0);
-        }
-        const entries = [...names.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-        if (!entries.length) { el.textContent = "None stored"; return; }
-        el.innerHTML = entries.map(([n, size]) => {
-          const action = storedNames.has(n)
-            ? `<button onclick="mountOrSelectStoredGame(${JSON.stringify(n)})">${started ? "Mount" : "Select"}</button>`
-            : "";
-          return `<div class="game-entry"><span title="${esc(n)}">${esc(n)}</span><small>${formatBytes(size)}</small>${action}</div>`;
-        }).join("");
-      } catch(e) { el.textContent = hasOPFS() ? "None stored" : "OPFS unavailable"; }
-    }
-
-    async function mountOrSelectStoredGame(name) {
+    async function playOrMountStoredGame(name) {
       if (!started || !window.FS) {
         selectedStoredGame = name;
         selectedGame = null;
         const textNode = fileLabel.firstChild;
         if (textNode && textNode.nodeType === 3) textNode.textContent = "\uD83D\uDCC2 " + name + " ";
-        setStatus("Selected stored ISO: " + name);
-        showToast("✓ Selected " + name);
+        setStatus("Starting " + name, "run");
+        showToast("Starting " + name + "…");
+        start();
         return;
       }
 
@@ -1267,12 +1281,64 @@
         FS.writeFile(path, await opfsReadGame(name));
         log("Mounted stored ISO from OPFS: " + path, "ok");
         showToast("✓ " + name + " mounted");
-        refreshGamesList();
+        refreshLibrary();
       } catch(e) {
         log("Stored ISO mount failed: " + e.message, "err");
         showToast("❌ " + e.message);
       }
     }
+
+    async function showGameInfo(name) {
+      try {
+        const meta = await ensureGameMetadata(name);
+        const stat = (await opfsWalk(OPFS_GAMES_DIR, "", false)).find(g => g.path === name);
+        const mounted = !!window.FS?.analyzePath?.(VIRTUAL_GAME_DIR + "/" + name).exists;
+        const title = meta.title || prettyGameName(name);
+        const cover = await readGameCoverURL(name, meta.coverType);
+        if (cover) _libraryCoverURLs.push(cover);
+
+        document.getElementById("gameInfoTitle").textContent = title;
+        document.getElementById("gameInfoCover").innerHTML = cover
+          ? `<img src="${cover}" alt="${esc(title)} cover">`
+          : `<div class="game-cover" style="height:100%;background:${gameAccent(name)}"><div class="game-cover-fallback">${esc(title.split(/\s+/).slice(0, 4).join(" "))}</div></div>`;
+        document.getElementById("gameInfoRows").innerHTML = [
+          ["File", name],
+          ["Format", meta.format || "Unknown"],
+          ["Size", formatBytes(stat?.size || 0)],
+          ["Stored", "OPFS /" + OPFS_GAMES_DIR + "/" + name],
+          ["Runtime", VIRTUAL_GAME_DIR + "/" + name],
+          ["Mounted", mounted ? "yes" : "no"],
+          ["Cover", meta.coverType ? "yes" : "no"],
+        ].map(([k, v]) => `<div class="game-info-row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join("");
+
+        const playBtn = document.getElementById("gameInfoPlayBtn");
+        playBtn.textContent = started ? (mounted ? "Ready" : "Mount") : "Play";
+        playBtn.disabled = started && mounted;
+        playBtn.onclick = () => {
+          closeGameInfo();
+          playOrMountStoredGame(name);
+        };
+        document.getElementById("gameInfoModal").classList.add("visible");
+        document.getElementById("gameInfoModal").setAttribute("aria-hidden", "false");
+      } catch(e) {
+        log("Game info failed: " + e.message, "err");
+        showToast("❌ Info failed: " + e.message);
+      }
+    }
+
+    function closeGameInfo() {
+      const modal = document.getElementById("gameInfoModal");
+      modal.classList.remove("visible");
+      modal.setAttribute("aria-hidden", "true");
+    }
+
+    const mountOrSelectStoredGame = playOrMountStoredGame;
+    window.playOrMountStoredGame = playOrMountStoredGame;
+    window.mountOrSelectStoredGame = playOrMountStoredGame;
+    window.showGameInfo = showGameInfo;
+    window.closeGameInfo = closeGameInfo;
+    window.downloadStoredFile = downloadStoredFile;
+    window.deleteStoredFile = deleteStoredFile;
 
     let _libraryCoverURLs = [];
 
@@ -1330,7 +1396,8 @@
           const title = meta.title || prettyGameName(game.path);
           const format = meta.format || (game.path.split(".").pop() || "").toUpperCase();
           const mounted = !!window.FS?.analyzePath?.(VIRTUAL_GAME_DIR + "/" + game.path).exists;
-          const primary = started ? (mounted ? "Ready" : "Mount") : "Select";
+          const primary = started ? (mounted ? "Ready" : "Mount") : "Play";
+          const primaryDisabled = started && mounted ? " disabled" : "";
           const fallback = title.split(/\s+/).slice(0, 4).join(" ");
           cards.push(`
             <div class="game-card">
@@ -1343,9 +1410,9 @@
                 <div class="game-card-title" title="${esc(title)}">${esc(title)}</div>
                 <div class="game-card-meta" title="${esc(game.path)}">${esc(format)} · ${formatBytes(game.size || 0)}</div>
                 <div class="game-card-actions">
-                  <button onclick="mountOrSelectStoredGame(${JSON.stringify(game.path)})">${primary}</button>
-                  <button class="icon-only" title="Download" onclick="downloadStoredFile(${JSON.stringify(VIRTUAL_GAME_DIR + "/" + game.path)})">&#11123;</button>
-                  <button class="icon-only danger" title="Delete" onclick="deleteStoredFile(${JSON.stringify(VIRTUAL_GAME_DIR + "/" + game.path)})">&#128465;</button>
+                  <button data-action="play" data-game="${esc(game.path)}"${primaryDisabled}>${primary}</button>
+                  <button class="icon-only" title="Info" data-action="info" data-game="${esc(game.path)}">i</button>
+                  <button class="icon-only danger" title="Delete" data-action="delete" data-game="${esc(game.path)}">&#128465;</button>
                 </div>
               </div>
             </div>
@@ -1362,15 +1429,10 @@
     }
 
     async function addGameToLibrary(file) {
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       showToast("Adding " + file.name + "…");
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const storedName = await opfsPutGame(file.name, bytes);
-        if (window.FS) {
-          window.FS.mkdirTree(VIRTUAL_GAME_DIR);
-          window.FS.writeFile(VIRTUAL_GAME_DIR + "/" + storedName, bytes);
-        }
+        const storedName = await storeGameBytes(file.name, bytes);
         log("Library: added " + storedName + " to OPFS.", "ok");
         showToast("✓ Added " + storedName);
         await refreshLibrary();
@@ -1378,6 +1440,109 @@
       } catch(e) {
         log("Library add failed: " + e.message, "err");
         showToast("❌ " + e.message);
+      }
+    }
+
+    async function storeGameBytes(name, bytes) {
+      const storedName = await opfsPutGame(name, bytes);
+      if (window.FS) {
+        window.FS.mkdirTree(VIRTUAL_GAME_DIR);
+        window.FS.writeFile(VIRTUAL_GAME_DIR + "/" + storedName, bytes);
+      }
+      return storedName;
+    }
+
+    function filenameFromContentDisposition(header) {
+      if (!header) return "";
+      const utf = header.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+      if (utf) {
+        try { return decodeURIComponent(utf[1].replace(/^"|"$/g, "")); } catch(e) {}
+      }
+      const simple = header.match(/filename\s*=\s*"?([^";]+)"?/i);
+      return simple ? simple[1].trim() : "";
+    }
+
+    function filenameFromURL(url) {
+      try {
+        const u = new URL(url, location.href);
+        const name = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() || "");
+        return name || "download.iso";
+      } catch(e) {
+        return "download.iso";
+      }
+    }
+
+    async function readResponseBytes(response, label) {
+      const total = Number(response.headers.get("content-length") || 0);
+      if (!response.body?.getReader) return new Uint8Array(await response.arrayBuffer());
+
+      const reader = response.body.getReader();
+      const chunks = [];
+      let received = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.byteLength;
+        if (total) {
+          const pct = received / total;
+          showLoading("Downloading " + label + "… " + Math.round(pct * 100) + "%", pct);
+          setStatus("Downloading " + label + " (" + formatBytes(received) + " / " + formatBytes(total) + ")", "run");
+        } else {
+          showLoading("Downloading " + label + "… " + formatBytes(received));
+          setStatus("Downloading " + label + " (" + formatBytes(received) + ")", "run");
+        }
+      }
+
+      const out = new Uint8Array(received);
+      let offset = 0;
+      for (const chunk of chunks) {
+        out.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return out;
+    }
+
+    async function addGameURLToLibrary(url) {
+      const trimmed = url.trim();
+      if (!trimmed) { showToast("Paste a game URL first"); return; }
+
+      let parsed;
+      try { parsed = new URL(trimmed, location.href); }
+      catch(e) { showToast("❌ Invalid URL"); return; }
+      if (!/^https?:$/i.test(parsed.protocol)) {
+        showToast("❌ Only http/https links are supported");
+        return;
+      }
+
+      const fallbackName = filenameFromURL(parsed.href);
+      showToast("Downloading " + fallbackName + "…");
+      showLoading("Downloading " + fallbackName + "…");
+      setStatus("Downloading " + fallbackName, "run");
+
+      try {
+        const response = await fetch(parsed.href, { mode: "cors" });
+        if (!response.ok) throw new Error("HTTP " + response.status + " " + response.statusText);
+        const headerName = filenameFromContentDisposition(response.headers.get("content-disposition"));
+        const name = (headerName || fallbackName).replace(/[^a-zA-Z0-9._-]/g, "_");
+        const bytes = await readResponseBytes(response, name);
+        const storedName = await storeGameBytes(name, bytes);
+        hideLoading();
+        log("Library: downloaded " + storedName + " from " + parsed.href + " (" + formatBytes(bytes.byteLength) + ").", "ok");
+        showToast("✓ Downloaded " + storedName);
+        setStatus("Library ready", "ok");
+        const input = document.getElementById("libraryUrlInput");
+        if (input) input.value = "";
+        await refreshLibrary();
+        updateStorageInfo();
+      } catch(e) {
+        hideLoading();
+        const corsHint = /Failed to fetch|NetworkError|Load failed/i.test(e.message)
+          ? " The server may need CORS enabled for browser downloads."
+          : "";
+        log("Library URL download failed: " + e.message + corsHint, "err");
+        setStatus("Download failed", "err");
+        showToast("❌ " + e.message, 5000);
       }
     }
 
@@ -1865,7 +2030,6 @@
         showToast("✓ " + file.name + " loaded → open from PPSSPP game browser", 5000);
         refreshLibrary();
         updateStorageInfo();
-        refreshGamesList();
       } catch(e) { log("Runtime ISO load failed: " + e.message, "err"); showToast("❌ " + e.message); }
     }
 
@@ -2571,10 +2735,31 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
     startBtn.addEventListener("click", start);
 
     document.getElementById("refreshLibraryBtn").addEventListener("click", refreshLibrary);
+    document.getElementById("libraryGrid").addEventListener("click", e => {
+      const button = e.target.closest("button[data-action]");
+      if (!button) return;
+      const name = button.dataset.game;
+      if (!name) return;
+      if (button.dataset.action === "play") playOrMountStoredGame(name);
+      else if (button.dataset.action === "info") showGameInfo(name);
+      else if (button.dataset.action === "delete") deleteStoredFile(VIRTUAL_GAME_DIR + "/" + name);
+    });
     document.getElementById("libraryImportFile").addEventListener("change", e => {
       const f = e.target.files[0]; if (!f) return;
       e.target.value = "";
       addGameToLibrary(f);
+    });
+    document.getElementById("libraryDownloadUrlBtn").addEventListener("click", () => {
+      addGameURLToLibrary(document.getElementById("libraryUrlInput").value);
+    });
+    document.getElementById("libraryUrlInput").addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      addGameURLToLibrary(e.currentTarget.value);
+    });
+    document.getElementById("gameInfoCloseBtn").addEventListener("click", closeGameInfo);
+    document.getElementById("gameInfoModal").addEventListener("click", e => {
+      if (e.target.id === "gameInfoModal") closeGameInfo();
     });
 
     // ── Runtime ISO loading ──────────────────────────────────────────
