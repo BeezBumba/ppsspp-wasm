@@ -28,6 +28,26 @@ Fork notes
 - Browser data such as saves and settings may be stored locally by the web app.
 - Games, BIOS files, or copyrighted PSP software are not included.
 
+Google Drive sync on GitHub Pages
+---------------------------------
+
+The web shell includes a client-only Google Drive panel for save bundles and
+ISO library upload/download. It uses Google Identity Services in the browser and
+the Drive REST API directly from the static page, so there is no backend and no
+client secret in the repository.
+
+To enable it for a Pages deployment:
+
+1. Create an OAuth 2.0 Client ID of type "Web application" in Google Cloud.
+2. Add the GitHub Pages origin, for example `https://root-hunter.github.io`, to
+   Authorized JavaScript origins.
+3. Enable the Google Drive API for the same Google Cloud project.
+4. Open the app, go to the Drive tab, paste the OAuth Web client ID, save it,
+   then connect Google Drive.
+
+Only the public client ID belongs in the browser. Do not add a client secret to
+GitHub Pages or any checked-in file.
+
 License and attribution
 -----------------------
 

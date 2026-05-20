@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
-  <link rel="stylesheet" href="app.css?v=12">
+  <link rel="stylesheet" href="app.css?v=13">
 </head>
 <body>
 
@@ -107,9 +107,22 @@
         <span id="statusText">Ready. Open a ROM or use Library.</span>
       </div>
 
-      <div class="tabs">
+      <div class="panel-tab-select-wrap">
+        <select id="panelTabSelect" class="panel-tab-select" aria-label="Panel section">
+          <option value="library">Library</option>
+          <option value="saves">Saves</option>
+          <option value="drive">Google Drive</option>
+          <option value="storage">OPFS Storage</option>
+          <option value="info">System</option>
+          <option value="log">Console</option>
+          <option value="about">About</option>
+        </select>
+      </div>
+
+      <div class="tabs" aria-hidden="true">
         <div class="tab active" data-tab="library">&#127918; Library</div>
         <div class="tab"        data-tab="saves">&#128190; Saves</div>
+        <div class="tab"        data-tab="drive">&#9729; Drive</div>
         <div class="tab"        data-tab="storage">&#128193; OPFS</div>
         <div class="tab"        data-tab="info">&#9881; System</div>
         <div class="tab"        data-tab="log">&#9000; Console</div>
@@ -147,6 +160,34 @@
           <div id="savesEmpty">Start PPSSPP and play a game,<br>then click Refresh to see your saves.</div>
           <div id="savesList" style="display:none"></div>
           <div class="saves-stats" id="savesStats"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabDrive">
+        <div id="drivePanel">
+          <div class="info-group">
+            <h3>Google Drive</h3>
+            <div class="drive-config">
+              <input id="googleClientIdInput" type="text" spellcheck="false" autocomplete="off" placeholder="OAuth Web client ID">
+              <button id="saveGoogleClientIdBtn" title="Save client ID">&#128190;</button>
+            </div>
+            <div class="info-row"><span class="info-key">Auth</span> <span class="info-val" id="iDriveAuth">Not connected</span></div>
+            <div class="info-row"><span class="info-key">Folder</span> <span class="info-val" id="iDriveFolder">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Remote</span> <span class="info-val" id="iDriveRemote">&#8212;</span></div>
+          </div>
+          <div class="drive-actions">
+            <button id="driveConnectBtn">&#128273; Connect Google</button>
+            <button id="driveDisconnectBtn">&#10005; Disconnect</button>
+            <button id="driveRefreshBtn">&#8635; Refresh Drive</button>
+            <button id="driveUploadSavesBtn">&#11123; Upload Saves</button>
+            <button id="driveRestoreSavesBtn">&#11121; Restore Latest Saves</button>
+            <button id="driveUploadGamesBtn">&#11123; Upload ISO Library</button>
+            <button id="driveDownloadGamesBtn">&#11121; Download Remote ISOs</button>
+          </div>
+          <div class="drive-help">
+            Static GitHub Pages flow: use a Google OAuth Web client ID, add this Pages origin in Google Cloud, and keep client secrets out of the app.
+          </div>
+          <div id="driveRemoteList"><span class="drive-empty">Connect Google Drive to list remote saves and ISOs.</span></div>
         </div>
       </div>
 
@@ -283,6 +324,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

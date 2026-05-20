@@ -339,7 +339,33 @@ body.panel-open aside { display: grid; }
 .status-dot.run { background: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
 #statusText { flex: 1; line-height: 1.4; }
 
-.tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.panel-tab-select-wrap {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.panel-tab-select {
+  width: 100%; height: 34px;
+  appearance: none; -webkit-appearance: none;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0)),
+    var(--surface2);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23687c8f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0));
+  background-repeat: no-repeat, repeat;
+  background-position: right 11px center, 0 0;
+  padding: 0 34px 0 11px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  outline: none;
+}
+.panel-tab-select:focus { border-color: var(--accent); box-shadow: var(--glow); }
+.panel-tab-select option { background: var(--surface2); color: var(--text); }
+.tabs { display: none; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .tab {
   flex: 1; padding: 7px 0; text-align: center;
   font-size: 11.5px; font-weight: 600; color: var(--muted);
@@ -650,6 +676,7 @@ body.panel-open aside { display: grid; }
   }
 
   #libraryPanel,
+  #drivePanel,
   #storagePanel,
   #infoPanel,
   #aboutPanel {
@@ -657,7 +684,8 @@ body.panel-open aside { display: grid; }
     padding-right: max(12px, env(safe-area-inset-right));
   }
   .library-toolbar,
-  .saves-toolbar {
+  .saves-toolbar,
+  .drive-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
@@ -667,7 +695,8 @@ body.panel-open aside { display: grid; }
   .library-toolbar button,
   .library-toolbar label.btn,
   .saves-toolbar button,
-  .saves-toolbar label.btn {
+  .saves-toolbar label.btn,
+  .drive-actions button {
     height: 38px;
     min-width: 0;
     width: 100%;
@@ -708,7 +737,8 @@ body.panel-open aside { display: grid; }
     font-size: 11px;
   }
   .save-card,
-  .save-state-row {
+  .save-state-row,
+  .drive-file-row {
     padding-left: 0;
     padding-right: 0;
   }
@@ -797,6 +827,89 @@ body.panel-open aside { display: grid; }
 }
 button.danger { border-color: rgba(255,95,95,.35); color: var(--danger); }
 button.danger:hover { background: rgba(255,95,95,.1); border-color: var(--danger); }
+
+/* ── Google Drive panel ─────────────────────────────────────────── */
+#drivePanel {
+  padding: 12px 14px; font-size: 11.5px;
+  overflow-y: auto; flex: 1; color: var(--muted);
+  scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.drive-config {
+  display: grid; grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 6px; margin-bottom: 8px;
+}
+#googleClientIdInput {
+  min-width: 0; height: 30px;
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); color: var(--text);
+  font: 11px/1 inherit; padding: 0 8px; outline: none;
+}
+#googleClientIdInput:focus { border-color: var(--accent); box-shadow: var(--glow); }
+#googleClientIdInput::placeholder { color: var(--muted); }
+.drive-config button { height: 30px; padding: 0; }
+.drive-actions {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.drive-actions button {
+  justify-content: flex-start;
+  height: 30px; min-width: 0; padding: 0 9px; font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.drive-help {
+  color: #8ea2b2; font-size: 10.5px; line-height: 1.5;
+  padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: rgba(91,164,232,.055);
+}
+#driveRemoteList {
+  min-height: 80px; overflow-y: auto; border-top: 1px solid var(--border);
+}
+.drive-empty {
+  display: block; padding: 22px 10px; text-align: center;
+  color: var(--muted); line-height: 1.7;
+}
+.drive-section-label {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 0 4px; gap: 8px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.drive-file-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 24px;
+  align-items: center; gap: 6px;
+  padding: 5px 0; border-bottom: 1px solid rgba(30,39,48,.45);
+}
+.drive-file-row:hover { background: rgba(255,255,255,.025); }
+.drive-file-name {
+  color: var(--text); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 10.5px;
+}
+.drive-file-size { color: var(--muted); font-size: 9.5px; white-space: nowrap; }
+.drive-file-row button {
+  height: 22px; min-width: 22px; width: 22px; padding: 0;
+  font-size: 11px; border-color: transparent; background: transparent;
+}
+.drive-file-row button:hover { background: var(--surface3); border-color: var(--border2); }
+
+@media (max-width: 700px), (pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 920px) {
+  #drivePanel {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .drive-actions button {
+    height: 38px;
+    width: 100%;
+    padding: 0 8px;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .drive-file-row {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
 
 /* ── Library tab ────────────────────────────────────────────────── */
 #libraryPanel {
