@@ -15,7 +15,8 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
-  <link rel="stylesheet" href="app.css?v=13">
+  <link rel="stylesheet" href="app.css?v=15">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
 
@@ -32,12 +33,12 @@
 
     <div class="hbar-group" id="launchGroup">
       <label class="btn" id="fileLabel">
-        &#128194;<span class="btn-lbl"> Launch ROM</span>
+        <i data-lucide="folder-open"></i><span class="btn-lbl"> Launch ROM</span>
         <input id="gameFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
       </label>
-      <button id="startBtn" class="primary">&#9654;<span class="btn-lbl"> Launch</span></button>
+      <button id="startBtn" class="primary"><i data-lucide="play"></i><span class="btn-lbl"> Launch</span></button>
       <label class="btn" id="runtimeIsoLabel" style="display:none" title="Load ISO while running — then open from PPSSPP game browser">
-        &#128190;<span class="btn-lbl"> Load ISO</span>
+        <i data-lucide="upload"></i><span class="btn-lbl"> Load ISO</span>
         <input id="runtimeIsoFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
       </label>
     </div>
@@ -45,7 +46,7 @@
     <div class="hbar-sep"></div>
 
     <div class="hbar-group" id="displayGroup">
-      <button id="fullscreenBtn" class="icon-btn" title="Fullscreen">&#x26F6;</button>
+      <button id="fullscreenBtn" class="icon-btn" title="Fullscreen"><i data-lucide="maximize"></i></button>
       <select id="gamepadSelect" class="btn" title="Active controller">
         <option value="-1">All controllers</option>
       </select>
@@ -54,16 +55,16 @@
     <div class="hbar-sep gpu-sep"></div>
     <div class="hbar-group" id="gpuSelectWrap">
       <select id="gpuSelect" class="btn" title="GPU preference">
-        <option value="high-performance">&#9889; Dedicated</option>
-        <option value="low-power">&#128267; Integrated</option>
-        <option value="default">&#128421; Default</option>
+        <option value="high-performance">Dedicated GPU</option>
+        <option value="low-power">Integrated GPU</option>
+        <option value="default">Auto GPU</option>
       </select>
     </div>
 
     <div class="hbar-end">
-      <span id="gamepadBadge" class="badge" title="Gamepad">&#127918; No controller</span>
-      <span id="gpuBadge"     class="badge" title="GPU">&#128421; Detecting&hellip;</span>
-      <button id="panelToggleBtn" class="panel-btn" title="Toggle console panel">&#9783;<span class="btn-lbl"> Panel</span></button>
+      <span id="gamepadBadge" class="badge" title="Gamepad"><i data-lucide="gamepad-2"></i> No controller</span>
+      <span id="gpuBadge"     class="badge" title="GPU"><i data-lucide="monitor"></i> Detecting&hellip;</span>
+      <button id="panelToggleBtn" class="panel-btn" title="Toggle console panel"><i data-lucide="panel-right"></i><span class="btn-lbl"> Panel</span></button>
     </div>
   </header>
 
@@ -77,8 +78,8 @@
             <h1 class="idle-title">Your PSP is waiting.</h1>
             <p class="idle-subtitle" id="idleSubtitle">Open a ROM or pick a game from the library to start PPSSPP in the browser.</p>
             <div class="idle-actions">
-              <label class="btn primary" for="gameFile">&#128194;<span> Open ROM</span></label>
-              <button id="idleStartBtn" type="button">&#9654;<span> Start PPSSPP</span></button>
+              <label class="btn primary" for="gameFile"><i data-lucide="folder-open"></i><span> Open ROM</span></label>
+              <button id="idleStartBtn" class="secondary" type="button"><i data-lucide="play"></i><span> Start PPSSPP</span></button>
             </div>
           </div>
           <div class="idle-psp" aria-hidden="true">
@@ -120,25 +121,25 @@
       </div>
 
       <div class="tabs" aria-hidden="true">
-        <div class="tab active" data-tab="library">&#127918; Library</div>
-        <div class="tab"        data-tab="saves">&#128190; Saves</div>
-        <div class="tab"        data-tab="drive">&#9729; Drive</div>
-        <div class="tab"        data-tab="storage">&#128193; OPFS</div>
-        <div class="tab"        data-tab="info">&#9881; System</div>
-        <div class="tab"        data-tab="log">&#9000; Console</div>
-        <div class="tab"        data-tab="about">&#8505; About</div>
+        <div class="tab active" data-tab="library"><i data-lucide="gamepad-2"></i> Library</div>
+        <div class="tab"        data-tab="saves"><i data-lucide="save"></i> Saves</div>
+        <div class="tab"        data-tab="drive"><i data-lucide="cloud"></i> Drive</div>
+        <div class="tab"        data-tab="storage"><i data-lucide="hard-drive"></i> OPFS</div>
+        <div class="tab"        data-tab="info"><i data-lucide="settings"></i> System</div>
+        <div class="tab"        data-tab="log"><i data-lucide="terminal"></i> Console</div>
+        <div class="tab"        data-tab="about"><i data-lucide="info"></i> About</div>
       </div>
 
       <div class="tab-panel active" id="tabLibrary">
         <div id="libraryPanel">
           <div class="library-toolbar">
-            <button id="refreshLibraryBtn">&#8635; Refresh</button>
+            <button id="refreshLibraryBtn"><i data-lucide="refresh-cw"></i> Refresh</button>
             <label class="btn" id="libraryImportLabel">
-              &#128194; Add ISO
+              <i data-lucide="folder-plus"></i> Add ISO
               <input id="libraryImportFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
             </label>
             <input id="libraryUrlInput" type="url" placeholder="https://.../game.iso" autocomplete="off" spellcheck="false">
-            <button id="libraryDownloadUrlBtn">&#128279; Download</button>
+            <button id="libraryDownloadUrlBtn"><i data-lucide="download"></i> Download</button>
             <span class="library-count" id="libraryCount">0 games</span>
           </div>
           <div id="libraryEmpty">No games in OPFS yet.<br>Add an ISO or use Launch ROM once.</div>
@@ -149,13 +150,13 @@
       <div class="tab-panel" id="tabSaves">
         <div id="savesPanel">
           <div class="saves-toolbar">
-            <button id="refreshSavesBtn">&#8635; Refresh</button>
-            <button id="exportAllSavesBtn">&#11123; Export All</button>
+            <button id="refreshSavesBtn"><i data-lucide="refresh-cw"></i> Refresh</button>
+            <button id="exportAllSavesBtn"><i data-lucide="download"></i> Export All</button>
             <label class="btn" id="importSaveSlotLabel" title="Import a single save slot folder (.ppsspp)">
-              &#11121; Import Slot
+              <i data-lucide="upload"></i> Import Slot
               <input id="importSaveSlotFile" type="file" accept=".ppsspp,.json">
             </label>
-            <button id="deleteAllSavesBtn" class="danger" style="margin-left:auto">&#128465; All</button>
+            <button id="deleteAllSavesBtn" class="danger" style="margin-left:auto"><i data-lucide="trash-2"></i> All</button>
           </div>
           <div id="savesEmpty">Start PPSSPP and play a game,<br>then click Refresh to see your saves.</div>
           <div id="savesList" style="display:none"></div>
@@ -169,21 +170,21 @@
             <h3>Google Drive</h3>
             <div class="drive-config">
               <input id="googleClientIdInput" type="password" spellcheck="false" autocomplete="off" placeholder="OAuth Web client ID">
-              <button id="toggleGoogleClientIdBtn" title="Show client ID">&#128065;</button>
-              <button id="saveGoogleClientIdBtn" title="Save client ID">&#128190;</button>
+              <button id="toggleGoogleClientIdBtn" title="Show client ID"><i data-lucide="eye"></i></button>
+              <button id="saveGoogleClientIdBtn" title="Save client ID"><i data-lucide="save"></i></button>
             </div>
             <div class="info-row"><span class="info-key">Auth</span> <span class="info-val" id="iDriveAuth">Not connected</span></div>
             <div class="info-row"><span class="info-key">Folder</span> <span class="info-val" id="iDriveFolder">&#8212;</span></div>
             <div class="info-row"><span class="info-key">Remote</span> <span class="info-val" id="iDriveRemote">&#8212;</span></div>
           </div>
           <div class="drive-actions">
-            <button id="driveConnectBtn">&#128273; Connect Google</button>
-            <button id="driveDisconnectBtn">&#10005; Disconnect</button>
-            <button id="driveRefreshBtn">&#8635; Refresh Drive</button>
-            <button id="driveUploadSavesBtn">&#11123; Upload Saves</button>
-            <button id="driveRestoreSavesBtn">&#11121; Restore Latest Saves</button>
-            <button id="driveUploadGamesBtn">&#11123; Upload ISO Library</button>
-            <button id="driveDownloadGamesBtn">&#11121; Download Remote ISOs</button>
+            <button id="driveConnectBtn"><i data-lucide="link-2"></i> Connect Google</button>
+            <button id="driveDisconnectBtn"><i data-lucide="x"></i> Disconnect</button>
+            <button id="driveRefreshBtn"><i data-lucide="refresh-cw"></i> Refresh Drive</button>
+            <button id="driveUploadSavesBtn"><i data-lucide="upload"></i> Upload Saves</button>
+            <button id="driveRestoreSavesBtn"><i data-lucide="download"></i> Restore Latest Saves</button>
+            <button id="driveUploadGamesBtn"><i data-lucide="upload"></i> Upload ISO Library</button>
+            <button id="driveDownloadGamesBtn"><i data-lucide="download"></i> Download Remote ISOs</button>
           </div>
           <div class="drive-help">
             Static GitHub Pages flow: use a Google OAuth Web client ID, add this Pages origin in Google Cloud, and keep client secrets out of the app.
@@ -204,13 +205,13 @@
             <div class="info-row"><span class="info-key">Persist Path</span> <span class="info-val" id="iMemstickPath" style="font-size:10px;word-break:break-all">&#8212;</span></div>
           </div>
           <div class="storage-actions">
-            <button id="syncNowBtn">&#128190; Save Now (sync to OPFS)</button>
-            <button id="exportSavesBtn">&#11123; Export Saves (.ppsspp)</button>
+            <button id="syncNowBtn"><i data-lucide="save"></i> Save Now (sync to OPFS)</button>
+            <button id="exportSavesBtn"><i data-lucide="download"></i> Export Saves (.ppsspp)</button>
             <label class="btn" id="importSavesLabel" style="width:100%;justify-content:flex-start;padding:0 12px;height:30px;font-size:11.5px">
-              &#11121; Import Saves (.ppsspp)
+              <i data-lucide="upload"></i> Import Saves (.ppsspp)
               <input id="importSavesFile" type="file" accept=".ppsspp,.json">
             </label>
-            <button id="clearStorageBtn" class="danger">&#128465; Clear All Saved Data</button>
+            <button id="clearStorageBtn" class="danger"><i data-lucide="trash-2"></i> Clear All Saved Data</button>
           </div>
         </div>
         <div style="padding:4px 12px 2px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);margin-top:2px">Persisted Files</div>
@@ -305,7 +306,7 @@
         <div id="logPanel"><pre id="log"></pre></div>
         <div class="log-toolbar">
           <input id="logFilter" placeholder="Filter&hellip;" type="search" autocomplete="off" spellcheck="false">
-          <button id="clearLogBtn" title="Clear">&#128465;</button>
+          <button id="clearLogBtn" title="Clear"><i data-lucide="trash-2"></i></button>
         </div>
       </div>
     </aside>
@@ -320,12 +321,13 @@
         <div id="gameInfoRows"></div>
       </div>
       <div class="game-info-actions">
-        <button id="gameInfoPlayBtn">Play</button>
-        <button id="gameInfoCloseBtn">Close</button>
+        <button id="gameInfoPlayBtn" class="primary"><i data-lucide="play"></i> Play</button>
+        <button id="gameInfoCloseBtn"><i data-lucide="x"></i> Close</button>
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=16"></script>
+  <script>lucide.createIcons();</script>
 </body>
 </html>

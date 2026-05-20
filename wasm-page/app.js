@@ -74,6 +74,35 @@ async function selectBuildDir() {
 }
 
 /* ── DOM refs ───────────────────────────────────────────────────── */
+/* ── Lucide SVG helper (for dynamically injected HTML) ──────────── */
+const LUCIDE_PATHS = {
+  play:     '<polygon points="5 3 19 12 5 21 5 3"/>',
+  pause:    '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  upload:   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  trash:    '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+  save:     '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  gamepad:  '<line x1="6" y1="11" x2="10" y2="11"/><line x1="8" y1="9" x2="8" y2="13"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="17" y1="10" x2="17.01" y2="10"/><path d="M6 3h12l2 7-6 3-2 3-2-3-6-3z"/>',
+  info:     '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  menu:     '<line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/>',
+};
+function svgIcon(name, cls = "lucide") {
+  const d = LUCIDE_PATHS[name] || "";
+  return `<svg class="${cls}" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+}
+
+function triggerDownload(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 const canvas          = document.getElementById("canvas");
 const fileInput       = document.getElementById("gameFile");
 const fileLabel       = document.getElementById("fileLabel");
@@ -138,15 +167,15 @@ function setStartButtonMode(mode) {
   if (mode === "pause") {
     startBtn.disabled = false;
     startBtn.title = "Pause / PPSSPP menu";
-    startBtn.innerHTML = "&#9208;<span class=\"btn-lbl\"> Menu</span>";
+    startBtn.innerHTML = `${svgIcon("menu")}<span class="btn-lbl"> Menu</span>`;
   } else if (mode === "loading") {
     startBtn.disabled = true;
     startBtn.title = "Starting PPSSPP";
-    startBtn.innerHTML = "&#9654;<span class=\"btn-lbl\"> Launch</span>";
+    startBtn.innerHTML = `${svgIcon("play")}<span class="btn-lbl"> Launch</span>`;
   } else {
     startBtn.disabled = false;
     startBtn.title = "Launch PPSSPP";
-    startBtn.innerHTML = "&#9654;<span class=\"btn-lbl\"> Launch</span>";
+    startBtn.innerHTML = `${svgIcon("play")}<span class="btn-lbl"> Launch</span>`;
   }
 }
 
@@ -612,8 +641,8 @@ async function updateStorageInfo() {
             html += `<div class="opfs-file-name" title="${esc(path)}">${esc(name)}</div>`;
             html += `<div class="opfs-file-size">${formatBytes(size)}</div>`;
             html += `<div class="opfs-file-actions">`;
-            html += `<button title="Download" onclick="downloadStoredFile(${JSON.stringify(path)})">&#11123;</button>`;
-            html += `<button class="del" title="Delete" onclick="deleteStoredFile(${JSON.stringify(path)})">&#128465;</button>`;
+            html += `<button title="Download" onclick="downloadStoredFile(${JSON.stringify(path)})">${svgIcon("download")}</button>`;
+            html += `<button class="del" title="Delete" onclick="deleteStoredFile(${JSON.stringify(path)})">${svgIcon("trash")}</button>`;
             html += `</div>`;
             html += `</div>`;
           }
@@ -808,8 +837,8 @@ async function refreshLibrary() {
             <div class="game-card-meta" title="${esc(game.path)}">${esc(format)} · ${formatBytes(game.size || 0)}</div>
             <div class="game-card-actions">
               <button data-action="play" data-game="${esc(game.path)}"${primaryDisabled}>${primary}</button>
-              <button class="icon-only" title="Info" data-action="info" data-game="${esc(game.path)}">i</button>
-              <button class="icon-only danger" title="Delete" data-action="delete" data-game="${esc(game.path)}">&#128465;</button>
+              <button class="icon-only" title="Info" data-action="info" data-game="${esc(game.path)}">${svgIcon("info")}</button>
+              <button class="icon-only danger" title="Delete" data-action="delete" data-game="${esc(game.path)}">${svgIcon("trash")}</button>
             </div>
           </div>
         </div>
@@ -1083,7 +1112,7 @@ async function refreshSavesTab() {
   /* ── Save Data section ── */
   if (saveDataSlots.length) {
     const sdBytes = saveDataSlots.reduce((s, sl) => s + sl.files.reduce((a, f) => a + f.size, 0), 0);
-    html += `<div class="save-section-label"><span>&#128190; Save Data</span><span>${saveDataSlots.length} slot${saveDataSlots.length !== 1 ? "s" : ""} · ${formatBytes(sdBytes)}</span></div>`;
+    html += `<div class="save-section-label"><span>${svgIcon("save")} Save Data</span><span>${saveDataSlots.length} slot${saveDataSlots.length !== 1 ? "s" : ""} · ${formatBytes(sdBytes)}</span></div>`;
 
     for (const { slotDir, game, files, flat } of saveDataSlots) {
       if (!files.length) continue;
@@ -1103,13 +1132,11 @@ async function refreshSavesTab() {
       const allPaths  = files.map(f => f.path);
       const fileSummary = dataFiles.map(f => f.name).join(" · ");
 
-      const dlArgs = JSON.stringify(slotDir) + ", " + JSON.stringify(game) + ", " + JSON.stringify(flat);
-
       html += `<div class="save-card">`;
       if (thumbURL) {
         html += `<img class="save-card-thumb" src="${thumbURL}" alt="cover" loading="lazy">`;
       } else {
-        html += `<div class="save-card-thumb-placeholder">&#128190;</div>`;
+        html += `<div class="save-card-thumb-placeholder">${svgIcon("save", "lucide save-ph-icon")}</div>`;
       }
       html += `<div class="save-card-body">`;
       html += `<div class="save-card-name" title="${esc(slotDir)}">${esc(game)}</div>`;
@@ -1117,8 +1144,8 @@ async function refreshSavesTab() {
       if (fileSummary) html += `<div class="save-card-files" title="${esc(fileSummary)}">${esc(fileSummary)}</div>`;
       html += `</div>`;
       html += `<div class="save-card-actions">`;
-      html += `<button title="Download slot" onclick="downloadSaveSlot(${dlArgs})">&#11123;</button>`;
-      html += `<button class="del" title="Delete slot" onclick="deleteSaveSlot(${dlArgs})">&#128465;</button>`;
+      html += `<button title="Download slot" data-save-action="download-slot" data-slot-dir="${esc(slotDir)}" data-game="${esc(game)}">${svgIcon("download")}</button>`;
+      html += `<button class="del" title="Delete slot" data-save-action="delete-slot" data-slot-dir="${esc(slotDir)}" data-game="${esc(game)}">${svgIcon("trash")}</button>`;
       html += `</div>`;
       html += `</div>`;
     }
@@ -1132,7 +1159,7 @@ async function refreshSavesTab() {
       for (const f of files) allStateFiles.push({ f, slotDir, game, flat });
     }
     const ssBytes = allStateFiles.reduce((s, { f }) => s + f.size, 0);
-    html += `<div class="save-section-label" style="margin-top:6px"><span>&#127918; Save States</span><span>${allStateFiles.length} state${allStateFiles.length !== 1 ? "s" : ""} · ${formatBytes(ssBytes)}</span></div>`;
+    html += `<div class="save-section-label" style="margin-top:6px"><span>${svgIcon("gamepad")} Save States</span><span>${allStateFiles.length} state${allStateFiles.length !== 1 ? "s" : ""} · ${formatBytes(ssBytes)}</span></div>`;
 
     // Pair .ppst/.sst with same-base .jpg thumbnail
     const stateByBase = new Map(); // base → { dataFile, thumbFile, slotDir, game, flat }
@@ -1162,8 +1189,8 @@ async function refreshSavesTab() {
       html += `<div class="save-state-meta">${formatBytes(main.size)}</div>`;
       html += `</div>`;
       html += `<div class="save-state-actions">`;
-      if (dataFile) html += `<button title="Download" onclick="downloadSaveFile(${JSON.stringify(dataFile.path)})">&#11123;</button>`;
-      html += `<button class="del" title="Delete" onclick="deleteSavePair(${JSON.stringify(allPaths)})">&#128465;</button>`;
+      if (dataFile) html += `<button title="Download" data-save-action="download-file" data-path="${esc(dataFile.path)}">${svgIcon("download")}</button>`;
+      html += `<button class="del" title="Delete" data-save-action="delete-pair" data-paths="${esc(JSON.stringify(allPaths))}">${svgIcon("trash")}</button>`;
       html += `</div>`;
       html += `</div>`;
     }
@@ -1190,9 +1217,7 @@ async function downloadSaveFile(path) {
     const data = await readSaveFileData(path);
     const name = path.split("/").pop();
     const blob = new Blob([data], { type: "application/octet-stream" });
-    const url  = URL.createObjectURL(blob);
-    Object.assign(document.createElement("a"), { href: url, download: name }).click();
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, name);
     showToast("✓ Downloaded " + name);
   } catch(e) { showToast("❌ " + e.message); }
 }
@@ -1221,11 +1246,7 @@ async function downloadSaveSlot(slotDir, gameName) {
     }))
   };
   const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
-  const url  = URL.createObjectURL(blob);
-  Object.assign(document.createElement("a"), {
-    href: url, download: "ppsspp-slot-" + gameName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".ppsspp"
-  }).click();
-  URL.revokeObjectURL(url);
+  triggerDownload(blob, "ppsspp-slot-" + gameName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".ppsspp");
   log("Downloaded slot: " + gameName + " (" + files.length + " files)", "ok");
   showToast("✓ Downloaded " + gameName);
 }
@@ -1706,9 +1727,11 @@ async function uploadBlobToDrive(name, parentId, data, mimeType, progressLabel) 
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
+        setStatus("Drive upload: " + name + " – done", "ok");
         try { resolve(JSON.parse(xhr.responseText || "{}")); }
         catch(e) { resolve({ name }); }
       } else {
+        setStatus("Drive upload failed: HTTP " + xhr.status, "err");
         reject(new Error("Drive upload failed: HTTP " + xhr.status));
       }
     };
@@ -1749,7 +1772,7 @@ function renderDriveRemoteList() {
       html += `<div class="drive-file-row">
         <div class="drive-file-name" title="${esc(file.name)}">${esc(file.name)}</div>
         <div class="drive-file-size">${formatBytes(Number(file.size || 0))}</div>
-        <button title="Restore" data-drive-action="restore-save" data-id="${esc(file.id)}">&#11121;</button>
+        <button title="Restore" data-drive-action="restore-save" data-id="${esc(file.id)}">${svgIcon("upload")}</button>
       </div>`;
     }
   }
@@ -1759,7 +1782,7 @@ function renderDriveRemoteList() {
       html += `<div class="drive-file-row">
         <div class="drive-file-name" title="${esc(file.name)}">${esc(file.name)}</div>
         <div class="drive-file-size">${formatBytes(Number(file.size || 0))}</div>
-        <button title="Download to OPFS" data-drive-action="download-game" data-id="${esc(file.id)}">&#11121;</button>
+        <button title="Download to OPFS" data-drive-action="download-game" data-id="${esc(file.id)}">${svgIcon("download")}</button>
       </div>`;
     }
   }
@@ -3230,6 +3253,25 @@ document.getElementById("runtimeIsoFile").addEventListener("change", e => {
 // ── Saves tab buttons ─────────────────────────────────────────────
 document.getElementById("refreshSavesBtn").addEventListener("click", refreshSavesTab);
 document.getElementById("exportAllSavesBtn").addEventListener("click", exportSaves);
+document.getElementById("savesList").addEventListener("click", async e => {
+  const button = e.target.closest("button[data-save-action]");
+  if (!button) return;
+  const action = button.dataset.saveAction;
+  try {
+    if (action === "download-slot") {
+      await downloadSaveSlot(button.dataset.slotDir, button.dataset.game);
+    } else if (action === "delete-slot") {
+      await deleteSaveSlot(button.dataset.slotDir, button.dataset.game);
+    } else if (action === "download-file") {
+      await downloadSaveFile(button.dataset.path);
+    } else if (action === "delete-pair") {
+      await deleteSavePair(JSON.parse(button.dataset.paths || "[]"));
+    }
+  } catch(err) {
+    showToast("❌ " + (err?.message || err));
+    log("Save action failed: " + (err?.message || err), "err");
+  }
+});
 document.getElementById("importSaveSlotFile").addEventListener("change", e => {
   const f = e.target.files[0]; if (!f) return;
   importSaveSlot(f); e.target.value = "";
