@@ -386,6 +386,11 @@ body.panel-open aside { display: grid; }
   overflow-y: auto; color: var(--muted); flex: 1;
   scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
 }
+#aboutPanel {
+  padding: 12px 14px; font-size: 11.5px;
+  overflow-y: auto; color: var(--muted); flex: 1;
+  scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+}
 .info-group { margin-bottom: 16px; }
 .info-group h3 {
   font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
@@ -401,6 +406,51 @@ body.panel-open aside { display: grid; }
 .info-val.good { color: var(--accent); }
 .info-val.bad  { color: var(--danger); }
 .info-val.warn { color: var(--warn); }
+.about-hero {
+  display: flex; align-items: center; gap: 12px;
+  padding: 4px 0 14px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.about-mark {
+  width: 42px; height: 42px; flex: 0 0 42px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  background: rgba(0,212,170,.1);
+  border: 1px solid rgba(0,212,170,.28);
+  color: var(--accent); font-weight: 900; font-size: 14px;
+  letter-spacing: .04em;
+}
+.about-title {
+  color: var(--text); font-size: 16px; line-height: 1.2;
+  font-weight: 850;
+}
+.about-subtitle {
+  margin-top: 3px; color: var(--muted);
+  font-size: 11.5px; line-height: 1.4;
+}
+.about-text {
+  color: #a9bac8;
+  font-size: 11.5px; line-height: 1.6;
+}
+.about-text a,
+.about-links a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.about-text a:hover,
+.about-links a:hover { text-decoration: underline; }
+.about-links {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 10px;
+}
+.about-links a {
+  display: inline-flex; align-items: center;
+  min-height: 28px; padding: 0 9px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  font-size: 11px; font-weight: 600;
+}
 
 /* ── Mobile: panel becomes a bottom drawer ───────────── */
 @media (max-width: 700px), (pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 920px) {
@@ -601,7 +651,8 @@ body.panel-open aside { display: grid; }
 
   #libraryPanel,
   #storagePanel,
-  #infoPanel {
+  #infoPanel,
+  #aboutPanel {
     padding-left: max(12px, env(safe-area-inset-left));
     padding-right: max(12px, env(safe-area-inset-right));
   }

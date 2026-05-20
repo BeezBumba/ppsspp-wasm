@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
-  <link rel="stylesheet" href="app.css?v=10">
+  <link rel="stylesheet" href="app.css?v=12">
 </head>
 <body>
 
@@ -113,6 +113,7 @@
         <div class="tab"        data-tab="storage">&#128193; OPFS</div>
         <div class="tab"        data-tab="info">&#9881; System</div>
         <div class="tab"        data-tab="log">&#9000; Console</div>
+        <div class="tab"        data-tab="about">&#8505; About</div>
       </div>
 
       <div class="tab-panel active" id="tabLibrary">
@@ -207,6 +208,56 @@
         </div>
       </div>
 
+      <div class="tab-panel" id="tabAbout">
+        <div id="aboutPanel">
+          <div class="about-hero">
+            <div class="about-mark">PP</div>
+            <div>
+              <div class="about-title">PPSSPP Web</div>
+              <div class="about-subtitle">Unofficial WebAssembly fork maintained for browser play.</div>
+            </div>
+          </div>
+
+          <div class="info-group">
+            <h3>Fork / Web Build</h3>
+            <div class="about-text">
+              This web app is maintained by <a href="https://github.com/root-hunter" target="_blank" rel="noopener">root-hunter</a>.
+              It packages PPSSPP for the browser with WebAssembly, GitHub Pages deployment, PWA shell, local browser storage helpers, and web-player UI work.
+            </div>
+            <div class="about-links">
+              <a href="https://root-hunter.github.io/ppsspp-web/" target="_blank" rel="noopener">Live web build</a>
+              <a href="https://github.com/root-hunter/ppsspp-web" target="_blank" rel="noopener">Fork repository</a>
+              <a href="https://github.com/root-hunter" target="_blank" rel="noopener">Maintainer</a>
+            </div>
+          </div>
+
+          <div class="info-group">
+            <h3>Original PPSSPP</h3>
+            <div class="about-text">
+              PPSSPP is a PSP emulator created by Henrik Rydgard, with additional code by many contributors.
+              This fork is not an official PPSSPP release and preserves the original project's credits and license terms.
+            </div>
+            <div class="about-links">
+              <a href="https://github.com/hrydgard/ppsspp" target="_blank" rel="noopener">Original project</a>
+              <a href="https://www.ppsspp.org/" target="_blank" rel="noopener">Official website</a>
+              <a href="https://www.ppsspp.org/docs" target="_blank" rel="noopener">Documentation</a>
+            </div>
+          </div>
+
+          <div class="info-group">
+            <h3>Credits / Legal</h3>
+            <div class="about-text">
+              Games, BIOS files, and copyrighted PSP software are not included. Use your own legally obtained files.
+              See the repository license and original PPSSPP credits for full attribution.
+            </div>
+            <div class="about-links">
+              <a href="LICENSE.TXT" target="_blank" rel="noopener">License</a>
+              <a href="README.md" target="_blank" rel="noopener">README</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="tab-panel" id="tabLog">
         <div id="logPanel"><pre id="log"></pre></div>
         <div class="log-toolbar">
@@ -232,6 +283,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
