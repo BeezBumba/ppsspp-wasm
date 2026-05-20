@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>PPSSPP Web</title>
 
   <!-- PWA -->
@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
-  <link rel="stylesheet" href="app.css?v=2">
+  <link rel="stylesheet" href="app.css?v=6">
 </head>
 <body>
 
@@ -30,7 +30,7 @@
 
     <div class="hbar-sep"></div>
 
-    <div class="hbar-group">
+    <div class="hbar-group" id="launchGroup">
       <label class="btn" id="fileLabel">
         &#128194;<span class="btn-lbl"> Launch ROM</span>
         <input id="gameFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
@@ -44,7 +44,7 @@
 
     <div class="hbar-sep"></div>
 
-    <div class="hbar-group">
+    <div class="hbar-group" id="displayGroup">
       <button id="fullscreenBtn" class="icon-btn" title="Fullscreen">&#x26F6;</button>
       <select id="gamepadSelect" class="btn" title="Active controller">
         <option value="-1">All controllers</option>
@@ -232,6 +232,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

@@ -14,6 +14,28 @@ const OPFS_PERSIST_DIR    = "persist";
 const OPFS_GAMES_DIR      = "games";
 const OPFS_GAME_META_DIR  = "game-meta";
 const PERSIST_SYNC_MS     = 30000; // auto-sync every 30 s
+const MOBILE_EMULATOR_ARGS = ["--dpi", "1", "--xres", "1280", "--yres", "720"];
+
+function syncViewportSize() {
+  const vv = window.visualViewport;
+  const height = Math.max(320, Math.round(vv?.height || window.innerHeight || document.documentElement.clientHeight));
+  document.documentElement.style.setProperty("--app-h", height + "px");
+}
+
+function notifyRuntimeResize() {
+  syncViewportSize();
+  window.dispatchEvent(new Event("resize"));
+}
+
+function emulatorLaunchArgs() {
+  return window.matchMedia?.("(pointer: coarse)")?.matches ? MOBILE_EMULATOR_ARGS.slice() : [];
+}
+
+syncViewportSize();
+window.addEventListener("resize", syncViewportSize, { passive: true });
+window.addEventListener("orientationchange", () => setTimeout(notifyRuntimeResize, 120), { passive: true });
+window.visualViewport?.addEventListener("resize", syncViewportSize, { passive: true });
+window.visualViewport?.addEventListener("scroll", syncViewportSize, { passive: true });
 
 function setBuildDir(dir) {
   BUILD_DIR = dir;
@@ -2603,6 +2625,7 @@ async function start() {
           await forceGamesDirectoryConfig(FS);
           gameArg = await preloadGame(FS);
           Module.arguments.length = 0;
+          Module.arguments.push(...emulatorLaunchArgs());
           if (gameArg) Module.arguments.push(gameArg);
           log("PPSSPP arguments: " + JSON.stringify(Module.arguments), "info");
           setStatus("Starting PPSSPP\u2026", "run");
@@ -2786,6 +2809,7 @@ function _showCursor() {
   if (document.fullscreenElement) _fsCursorTimer = setTimeout(_hideCursor, 2000);
 }
 document.addEventListener("fullscreenchange", () => {
+  setTimeout(notifyRuntimeResize, 80);
   if (document.fullscreenElement) {
     // entered fullscreen — hide cursor after 2 s
     _fsCursorTimer = setTimeout(_hideCursor, 2000);
