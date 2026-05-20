@@ -845,7 +845,7 @@
     const audioDebug = {
       callbacks: 0, nonsilent: 0, peak: 0, rate: 0, deviceStarted: false,
       pushes: 0, pushNonsilent: 0, pushPeak: 0,
-      workletPeak: 0, workletTotal: 0, ringDropped: 0, fallbackPeak: 0, fallbackDropped: 0,
+      workletPeak: 0, workletTotal: 0, ringDropped: 0, underruns: 0, fallbackPeak: 0, fallbackDropped: 0,
     };
 
     /* ── Toast ──────────────────────────────────────────────────────── */
@@ -2184,7 +2184,7 @@
     let audioWorkletIniting    = false;
     let scriptFallbackPlayer   = null;
     let useScriptFallbackAudio = true;
-    let gameAudioGain          = 3.0;
+    let gameAudioGain          = 1.0;
 
     const WORKLET_CODE = `
 class PPSSPPAudio extends AudioWorkletProcessor {
@@ -2451,7 +2451,7 @@ registerProcessor('ppsspp-audio', PPSSPPAudio);
       if (audioDebug.callbacks === 0)
         log("AUDIO: SDL callbacks=0, ctx=" + state + ". Waiting for game start or click Audio.");
       else
-        log("AUDIO: callbacks=" + audioDebug.callbacks + " (nonsilent=" + audioDebug.nonsilent + "), peak=" + audioDebug.peak + ", ctx=" + state + ".");
+        log("AUDIO: callbacks=" + audioDebug.callbacks + " (nonsilent=" + audioDebug.nonsilent + "), peak=" + audioDebug.peak + ", underruns=" + audioDebug.underruns + ", dropped=" + audioDebug.ringDropped + ", ctx=" + state + ".");
       updateInfoPanel();
     }
 
@@ -2550,8 +2550,11 @@ class PPSSPPSpShim extends AudioWorkletProcessor {
     const p        = opts.processorOptions || {};
     this._nCh      = p.channels || 2;
     this._cap      = p.cap      || 65536;
-    this._ctrl     = new Int32Array(p.sab, 0, 4);
-    this._data     = new Float32Array(p.sab, 16, this._cap * this._nCh);
+    this._ctrl     = new Int32Array(p.sab, 0, 8);
+    this._data     = new Float32Array(p.sab, 32, this._cap * this._nCh);
+    this._last     = new Float32Array(this._nCh);
+    this._ramp     = 0;
+    this._rampFrames = 64;
     this._tick     = 0;
   }
   process(inputs, outputs) {
@@ -2562,18 +2565,35 @@ class PPSSPPSpShim extends AudioWorkletProcessor {
     const w = Atomics.load(this._ctrl, 0);
     const avail = (w - r + this._cap) % this._cap;
     const read  = Math.min(n, avail);
+    let ramp = this._ramp;
     for (let i = 0; i < read; i++) {
-      for (let c = 0; c < ch.length; c++)
-        ch[c][i] = this._data[r * this._nCh + Math.min(c, this._nCh - 1)];
+      const blend = ramp > 0 ? 1.0 - ramp / this._rampFrames : 1.0;
+      for (let c = 0; c < ch.length; c++) {
+        const src = this._data[r * this._nCh + Math.min(c, this._nCh - 1)];
+        const mixed = ramp > 0 ? this._last[c] * (1.0 - blend) + src * blend : src;
+        const out = Math.max(-0.98, Math.min(0.98, mixed));
+        ch[c][i] = out;
+        this._last[c] = out;
+      }
+      if (ramp > 0) ramp--;
       r = (r + 1) % this._cap;
     }
-    for (let i = read; i < n; i++)
-      for (let c = 0; c < ch.length; c++) ch[c][i] = 0;
+    this._ramp = ramp;
+    if (read < n) {
+      Atomics.add(this._ctrl, 4, 1);
+      this._ramp = this._rampFrames;
+      for (let i = read; i < n; i++) {
+        for (let c = 0; c < ch.length; c++) {
+          this._last[c] *= 0.985;
+          ch[c][i] = Math.abs(this._last[c]) < 0.00001 ? 0 : Math.max(-0.98, Math.min(0.98, this._last[c]));
+        }
+      }
+    }
     Atomics.store(this._ctrl, 1, r);
     Atomics.add(this._ctrl, 2, read);
     // Report consumed count periodically so main thread can track ring fill.
     if ((++this._tick & 15) === 0)
-      this.port.postMessage({ type: 'status', avail });
+      this.port.postMessage({ type: 'status', avail, underruns: Atomics.load(this._ctrl, 4) });
     return true;
   }
 }
@@ -2629,21 +2649,25 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       let _dest    = null;
       let _timerId = null;
       let _fakeBuf = null;
+      let _fakeChannels = [];
       let _ctrl    = null;
       let _data    = null;
 
       // Clock-sync state (all in frames)
-      let _clockStart    = -1;   // ctx.currentTime at first push
-      let _totalPushed   = 0;    // frames pushed to worklet ring
-      let _totalConsumed = 0;    // frames consumed by worklet (from messages)
       let _workletDropped = 0;
+      let _lastUnderruns = 0;
+      let _adaptiveExtra = 0;
+      let _lastUnderrunTime = 0;
 
-      try { _fakeBuf = ctx.createBuffer(nCh, bufsz, SR); } catch(e) {}
+      try {
+        _fakeBuf = ctx.createBuffer(nCh, bufsz, SR);
+        _fakeChannels = Array.from({ length: nCh }, (_, c) => _fakeBuf.getChannelData(c));
+      } catch(e) {}
 
       /* Push ONE SDL callback's worth of audio to the worklet ring */
       function pushOne() {
         if (!_handler || !_fakeBuf || !_wn || !_ctrl || !_data) return false;
-        for (let c = 0; c < nCh; c++) _fakeBuf.getChannelData(c).fill(0);
+        for (let c = 0; c < nCh; c++) _fakeChannels[c].fill(0);
         try { _handler({ outputBuffer: _fakeBuf }); } catch(e) { return false; }
         let w = Atomics.load(_ctrl, 0);
         let r = Atomics.load(_ctrl, 1);
@@ -2658,11 +2682,9 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
           audioDebug.ringDropped = _workletDropped;
         }
         let peak = 0;
-        const channels = [];
-        for (let c = 0; c < nCh; c++) channels[c] = _fakeBuf.getChannelData(c);
         for (let i = 0; i < bufsz; i++) {
           for (let c = 0; c < nCh; c++) {
-            const sample = channels[c][i];
+            const sample = _fakeChannels[c][i];
             _data[w * nCh + c] = sample;
             peak = Math.max(peak, Math.abs(sample));
           }
@@ -2673,7 +2695,6 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
         audioDebug.peak = Math.round(peak * 32767);
         if (peak > 0) audioDebug.nonsilent++;
         Atomics.store(_ctrl, 0, w);
-        _totalPushed += bufsz;
         return true;
       }
 
@@ -2681,28 +2702,29 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       function pump() {
         if (ctx.state !== 'running' || !_handler || !_wn) return;
 
-        if (_clockStart < 0) {
-          // First call: anchor the audio clock and pre-fill lookahead
-          _clockStart    = ctx.currentTime;
-          _totalPushed   = 0;
-          _totalConsumed = 0;
+        _workletDropped = Atomics.load(_ctrl, 3);
+        const underruns = Atomics.load(_ctrl, 4);
+        if (underruns !== _lastUnderruns) {
+          _lastUnderruns = underruns;
+          _lastUnderrunTime = ctx.currentTime;
+          _adaptiveExtra = Math.min(SR * 0.120, _adaptiveExtra + bufsz);
+          audioDebug.underruns = underruns;
+        } else if (_adaptiveExtra > 0 && ctx.currentTime - _lastUnderrunTime > 3.0) {
+          _adaptiveExtra = Math.max(0, _adaptiveExtra - bufsz * 0.25);
         }
 
-        _totalConsumed = Atomics.load(_ctrl, 2);
-        _workletDropped = Atomics.load(_ctrl, 3);
-
-        // Frames the hardware DAC has consumed since we started
-        const hwConsumed = (ctx.currentTime - _clockStart) * SR;
-
-        // Frames sitting in the ring buffer right now (approximate)
-        const ringFill   = Math.max(0, _totalPushed - hwConsumed - _workletDropped);
-        if (ringFill > MAX_FILL) return;
+        const writePos = Atomics.load(_ctrl, 0);
+        const readPos = Atomics.load(_ctrl, 1);
+        const ringFill = (writePos - readPos + RING_CAP) % RING_CAP;
+        const targetFill = LOOKAHEAD + _adaptiveExtra;
+        const maxFill = MAX_FILL + _adaptiveExtra;
+        if (ringFill > maxFill) return;
 
         // Push only until the ring is filled LOOKAHEAD frames ahead
         let n = 0;
         while (
-          ringFill + n * bufsz < LOOKAHEAD &&       // need more samples
-          _totalPushed - _totalConsumed - _workletDropped < MAX_FILL &&
+          ringFill + n * bufsz < targetFill &&       // need more samples
+          ringFill + n * bufsz < maxFill &&
           n < MAX_BURST
         ) {
           if (!pushOne()) break;
@@ -2737,9 +2759,9 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
             log('AUDIO: SharedArrayBuffer unavailable, SP shim cannot run without extra copies.', 'err');
             return;
           }
-          const sab = new SharedArrayBuffer(16 + RING_CAP * nCh * 4);
-          _ctrl = new Int32Array(sab, 0, 4);
-          _data = new Float32Array(sab, 16, RING_CAP * nCh);
+          const sab = new SharedArrayBuffer(32 + RING_CAP * nCh * 4);
+          _ctrl = new Int32Array(sab, 0, 8);
+          _data = new Float32Array(sab, 32, RING_CAP * nCh);
           _wn = new AudioWorkletNode(ctx, 'ppsspp-sp-shim', {
             numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [nCh],
             processorOptions: { channels: nCh, cap: RING_CAP, sab },
