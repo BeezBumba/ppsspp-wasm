@@ -67,5 +67,5 @@
 	url = https://github.com/hrydgard/nanosvg.git
 [submodule "ext/aemu_postoffice"]
 	path = ext/aemu_postoffice
-	url = https://github.com/Kethen/aemu_postoffice.git
-	branch = ppsspp
+	url = https://github.com/root-hunter/aemu_postoffice.git
+	branch = ppsspp-web-emscripten-socket
