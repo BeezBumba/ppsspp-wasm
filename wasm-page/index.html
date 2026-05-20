@@ -79,11 +79,11 @@
     button:hover, label.btn:hover { background: var(--surface3); border-color: var(--border2); }
     button:active, label.btn:active { transform: scale(.97); }
     button:focus-visible, select.btn:focus-visible { box-shadow: var(--glow); border-color: var(--accent); }
-    button.primary {
+    button.primary, label.btn.primary {
       background: var(--accent); color: #051410;
       border-color: var(--accent2); font-weight: 700; font-size: 13px; padding: 0 16px;
     }
-    button.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+    button.primary:hover, label.btn.primary:hover { background: var(--accent2); border-color: var(--accent2); }
     button.icon-btn { padding: 0; width: 32px; font-size: 15px; }
     button.panel-btn {
       background: transparent; border-color: var(--border2);
@@ -144,6 +144,111 @@
     body.panel-open canvas {
       width: min(100%, calc((100dvh - var(--h)) * 16 / 9));
     }
+
+    /* ── Idle welcome screen ─────────────────────────────── */
+    #idleOverlay {
+      position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(100%, calc((100dvh - var(--h)) * 16 / 9));
+      aspect-ratio: 16 / 9;
+      max-height: calc(100dvh - var(--h));
+      display: flex; align-items: center; justify-content: center;
+      padding: clamp(18px, 4vw, 44px);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius-sm);
+      overflow: hidden; pointer-events: none;
+      background:
+        radial-gradient(circle at 24% 22%, rgba(0,212,170,.26), transparent 28%),
+        radial-gradient(circle at 78% 74%, rgba(91,164,232,.18), transparent 32%),
+        linear-gradient(145deg, #071116 0%, #101923 48%, #050607 100%);
+      box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,.025);
+      transition: opacity .22s ease, transform .22s ease, visibility .22s;
+    }
+    body.emulator-started #idleOverlay {
+      opacity: 0; visibility: hidden;
+      transform: translate(-50%, -50%) scale(.985);
+    }
+    #idleOverlay::before {
+      content: ""; position: absolute; inset: -35%;
+      background:
+        linear-gradient(115deg, transparent 0 42%, rgba(255,255,255,.07) 43% 44%, transparent 45% 100%),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.028) 0 1px, transparent 1px 72px);
+      transform: rotate(-8deg);
+      animation: idleSweep 12s linear infinite;
+    }
+    #idleOverlay::after {
+      content: ""; position: absolute; inset: 0;
+      background:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: radial-gradient(circle at center, black, transparent 72%);
+      opacity: .55;
+    }
+    @keyframes idleSweep { to { transform: rotate(-8deg) translateX(72px); } }
+    .idle-content {
+      position: relative; z-index: 1;
+      display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 340px);
+      align-items: center; gap: clamp(20px, 5vw, 56px);
+      width: min(860px, 100%); pointer-events: none;
+    }
+    .idle-copy { max-width: 430px; }
+    .idle-kicker {
+      display: inline-flex; align-items: center; gap: 7px;
+      margin-bottom: 12px; color: var(--accent);
+      font-size: 11px; font-weight: 800; letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .idle-kicker::before {
+      content: ""; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 12px var(--accent);
+    }
+    .idle-title {
+      font-size: clamp(26px, 4.6vw, 52px);
+      line-height: .98; font-weight: 850; letter-spacing: 0;
+      color: #f3fbff; text-wrap: balance;
+    }
+    .idle-subtitle {
+      margin-top: 12px; color: #9bb0bf;
+      font-size: clamp(12px, 1.8vw, 15px); line-height: 1.55;
+      max-width: 34em;
+    }
+    .idle-actions {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px;
+      pointer-events: auto;
+    }
+    .idle-actions .btn, .idle-actions button { height: 36px; }
+    .idle-actions .btn { font-weight: 700; }
+    .idle-psp {
+      position: relative; width: min(100%, 320px); aspect-ratio: 1.72;
+      justify-self: center; border-radius: 28px;
+      background: linear-gradient(145deg, #18232b, #090d11 58%, #151d24);
+      border: 1px solid rgba(255,255,255,.09);
+      box-shadow: 0 28px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .idle-psp-screen {
+      position: absolute; inset: 18% 20%;
+      border-radius: 8px; border: 1px solid rgba(0,212,170,.28);
+      background:
+        linear-gradient(135deg, rgba(0,212,170,.24), rgba(91,164,232,.16)),
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,.24), transparent 35%),
+        #020405;
+      box-shadow: inset 0 0 24px rgba(0,0,0,.8), 0 0 30px rgba(0,212,170,.12);
+    }
+    .idle-psp-screen::after {
+      content: ""; position: absolute; left: 16%; right: 16%; bottom: 18%;
+      height: 3px; border-radius: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: idlePulse 1.9s ease-in-out infinite;
+    }
+    .idle-psp-dpad, .idle-psp-buttons, .idle-psp-stick {
+      position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.08);
+    }
+    .idle-psp-dpad { left: 8%; top: 35%; width: 40px; height: 40px; }
+    .idle-psp-buttons { right: 8%; top: 33%; width: 48px; height: 48px; }
+    .idle-psp-stick { left: 13%; bottom: 17%; width: 22px; height: 22px; background: rgba(0,212,170,.18); }
+    @keyframes idlePulse { 0%,100%{opacity:.45; transform:scaleX(.65)} 50%{opacity:1; transform:scaleX(1)} }
 
     /* ── Loading overlay ─────────────────────────────────── */
     #loadOverlay {
@@ -301,6 +406,15 @@
         border-radius: 0;
         box-shadow: none;
       }
+      #idleOverlay {
+        width: 100vw; max-height: calc(100dvh - var(--h));
+        border: none; border-radius: 0;
+        padding: 22px 18px 58px;
+      }
+      .idle-content { grid-template-columns: 1fr; gap: 18px; }
+      .idle-copy { max-width: 520px; }
+      .idle-psp { width: min(72vw, 270px); order: -1; }
+      .idle-actions .btn, .idle-actions button { height: 40px; }
 
       /* Panel: full-screen bottom drawer */
       body.panel-open .body-main { grid-template-columns: 1fr; }
@@ -647,6 +761,25 @@
   <div class="body-main">
     <section class="stage">
       <canvas id="canvas" width="1280" height="720" tabindex="0"></canvas>
+      <div id="idleOverlay">
+        <div class="idle-content">
+          <div class="idle-copy">
+            <div class="idle-kicker">Ready to play</div>
+            <h1 class="idle-title">Your PSP is waiting.</h1>
+            <p class="idle-subtitle" id="idleSubtitle">Open a ROM or pick a game from the library to start PPSSPP in the browser.</p>
+            <div class="idle-actions">
+              <label class="btn primary" for="gameFile">&#128194;<span> Open ROM</span></label>
+              <button id="idleStartBtn" type="button">&#9654;<span> Start PPSSPP</span></button>
+            </div>
+          </div>
+          <div class="idle-psp" aria-hidden="true">
+            <div class="idle-psp-screen"></div>
+            <div class="idle-psp-dpad"></div>
+            <div class="idle-psp-buttons"></div>
+            <div class="idle-psp-stick"></div>
+          </div>
+        </div>
+      </div>
       <div id="loadOverlay">
         <div class="spinner"></div>
         <div class="load-label" id="loadLabel">Initializing&hellip;</div>
@@ -792,9 +925,9 @@
 
   <script>
     /* ── Constants ──────────────────────────────────────────────────── */
-    const BUILD_DIR        = "build-wasm/";
+    let BUILD_DIR          = "build-wasm/";
     const BUILD_STAMP      = String(Date.now());
-    const ASSET_DIR        = BUILD_DIR + "assets/";
+    let ASSET_DIR          = BUILD_DIR + "assets/";
     const MANIFEST         = "assets-manifest.txt";
     const USE_PRELOADED_ASSETS = true;
     const VIRTUAL_ASSETS   = "/emsdk/upstream/emscripten/cache/sysroot/share/ppsspp/assets";
@@ -807,6 +940,33 @@
     const OPFS_GAMES_DIR      = "games";
     const OPFS_GAME_META_DIR  = "game-meta";
     const PERSIST_SYNC_MS     = 30000; // auto-sync every 30 s
+
+    function setBuildDir(dir) {
+      BUILD_DIR = dir;
+      ASSET_DIR = BUILD_DIR + "assets/";
+    }
+
+    async function hasBuildFile(dir, name) {
+      try {
+        const r = await fetch(dir + name + "?v=" + BUILD_STAMP, { method: "HEAD", cache: "no-store" });
+        return r.ok;
+      } catch(e) {
+        return false;
+      }
+    }
+
+    async function selectBuildDir() {
+      if (await hasBuildFile(BUILD_DIR, "PPSSPPSDL.data")) return;
+
+      const releaseDir = "build-wasm-release/";
+      if (await hasBuildFile(releaseDir, "PPSSPPSDL.js") && await hasBuildFile(releaseDir, "PPSSPPSDL.data")) {
+        setBuildDir(releaseDir);
+        log("Using local release build: " + BUILD_DIR, "ok");
+        return;
+      }
+
+      log("PPSSPPSDL.data not found in " + BUILD_DIR + ". Rebuild with wasm-release or publish release files into build-wasm/.", "warn");
+    }
 
     /* ── DOM refs ───────────────────────────────────────────────────── */
     const canvas          = document.getElementById("canvas");
@@ -823,6 +983,9 @@
     const loadOverlay     = document.getElementById("loadOverlay");
     const loadLabel       = document.getElementById("loadLabel");
     const progressBar     = document.getElementById("progressBar");
+    const idleOverlay     = document.getElementById("idleOverlay");
+    const idleSubtitle    = document.getElementById("idleSubtitle");
+    const idleStartBtn    = document.getElementById("idleStartBtn");
     const fpsBadge        = document.getElementById("fpsBadge");
     const gpuBadge        = document.getElementById("gpuBadge");
     const gamepadBadge    = document.getElementById("gamepadBadge");
@@ -848,6 +1011,15 @@
       pushes: 0, pushNonsilent: 0, pushPeak: 0,
       workletPeak: 0, workletTotal: 0, ringDropped: 0, underruns: 0, fallbackPeak: 0, fallbackDropped: 0,
     };
+
+    function updateIdleOverlay() {
+      if (!idleOverlay || started) return;
+      let text = "Open a ROM or pick a game from the library to start PPSSPP in the browser.";
+      if (selectedGame) text = "Ready to launch " + selectedGame.name + ".";
+      else if (selectedStoredGame) text = "Ready to launch " + selectedStoredGame + " from your library.";
+      if (idleSubtitle) idleSubtitle.textContent = text;
+    }
+    updateIdleOverlay();
 
     /* ── Toast ──────────────────────────────────────────────────────── */
     const toastEl = document.getElementById("toast");
@@ -1335,6 +1507,7 @@
       if (!started || !window.FS) {
         selectedStoredGame = name;
         selectedGame = null;
+        updateIdleOverlay();
         const textNode = fileLabel.firstChild;
         if (textNode && textNode.nodeType === 3) textNode.textContent = "\uD83D\uDCC2 " + name + " ";
         setStatus("Starting " + name, "run");
@@ -3292,12 +3465,14 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
     async function start() {
       if (started) return;
       started = true;
+      document.body.classList.add("emulator-started");
       log("Launch button clicked.", "info");
       startBtn.disabled = true;
       fileLabel.classList.add("disabled"); fileInput.disabled = true;
       gpuSelectEl.disabled = true;
       canvas.focus();
       showLoading("Initializing audio\u2026");
+      await selectBuildDir();
 
       let preAudioCtx = null;
       try {
@@ -3410,10 +3585,12 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       const textNode = fileLabel.firstChild;
       if (textNode && textNode.nodeType === 3)
         textNode.textContent = (selectedGame ? "\uD83D\uDCC2 " + selectedGame.name : "\uD83D\uDCC2 Open ROM") + " ";
+      updateIdleOverlay();
       setStatus(selectedGame ? "Selected: " + selectedGame.name : "Ready. Open a ROM or use Library.");
     });
 
     startBtn.addEventListener("click", start);
+    idleStartBtn.addEventListener("click", start);
 
     document.getElementById("refreshLibraryBtn").addEventListener("click", refreshLibrary);
     document.getElementById("libraryGrid").addEventListener("click", e => {

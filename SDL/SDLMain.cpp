@@ -576,6 +576,18 @@ void System_LaunchUrl(LaunchUrlType urlType, std::string_view url) {
 		WebWifiConfig conf;
 		webWifiCreate(&conf, NULL, std::string(url).c_str(), uuid, 0);
 		webWifiShow(&conf, NULL);
+#elif defined(__EMSCRIPTEN__)
+		std::string urlString(url);
+		int opened = EM_ASM_INT({
+			const url = UTF8ToString($0);
+			const opened = window.open(url, "_blank");
+			if (opened)
+				opened.opener = null;
+			return opened ? 1 : 0;
+		}, urlString.c_str());
+		if (!opened) {
+			INFO_LOG(Log::System, "Browser blocked opening %.*s in a new tab", STR_VIEW(url));
+		}
 #elif defined(MOBILE_DEVICE)
 		INFO_LOG(Log::System, "Would have gone to %.*s but LaunchBrowser is not implemented on this platform", STR_VIEW(url));
 #elif defined(_WIN32)
