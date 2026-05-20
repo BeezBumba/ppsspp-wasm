@@ -77,30 +77,45 @@ self.addEventListener("fetch", event => {
 async function networkFirst(request) {
   const cache = await caches.open(CACHE_VERSION);
   try {
-    const response = await fetch(request);
+    const response = withCrossOriginIsolation(await fetch(request));
     if (response.ok) cache.put(request, response.clone());
     return response;
   } catch (_) {
     const cached = await cache.match(request);
-    return cached || new Response("Offline – PPSSPP Web is not cached yet.", {
+    return cached ? withCrossOriginIsolation(cached) : withCrossOriginIsolation(new Response("Offline – PPSSPP Web is not cached yet.", {
       status: 503,
       headers: { "Content-Type": "text/plain" },
-    });
+    }));
   }
 }
 
 async function cacheFirst(request) {
   const cache  = await caches.open(CACHE_VERSION);
   const cached = await cache.match(request);
-  if (cached) return cached;
+  if (cached) return withCrossOriginIsolation(cached);
   try {
-    const response = await fetch(request);
+    const response = withCrossOriginIsolation(await fetch(request));
     if (response.ok) cache.put(request, response.clone());
     return response;
   } catch (err) {
-    return new Response("Network error: " + err.message, {
+    return withCrossOriginIsolation(new Response("Network error: " + err.message, {
       status: 503,
       headers: { "Content-Type": "text/plain" },
-    });
+    }));
   }
+}
+
+function withCrossOriginIsolation(response) {
+  if (!response || response.type === "opaque") return response;
+
+  const headers = new Headers(response.headers);
+  headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+  headers.set("Cross-Origin-Resource-Policy", "same-origin");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }

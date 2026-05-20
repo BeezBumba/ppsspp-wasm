@@ -3550,9 +3550,17 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
 
     /* ── PWA: Service Worker registration ──────────────────────────── */
     if ("serviceWorker" in navigator) {
+      const coiReloadKey = "ppsspp-coi-reload";
+      const reloadForCrossOriginIsolation = () => {
+        if (window.crossOriginIsolated || sessionStorage.getItem(coiReloadKey) === "1") return;
+        sessionStorage.setItem(coiReloadKey, "1");
+        location.reload();
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", reloadForCrossOriginIsolation);
       navigator.serviceWorker.register("sw.js", { scope: "./" })
         .then(reg => {
           log("SW registered (scope: " + reg.scope + ")", "ok");
+          if (navigator.serviceWorker.controller) reloadForCrossOriginIsolation();
           reg.addEventListener("updatefound", () => {
             const sw = reg.installing;
             sw?.addEventListener("statechange", () => {
