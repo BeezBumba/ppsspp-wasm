@@ -38,7 +38,7 @@ jobs:
           apt-get install -y --no-install-recommends ninja-build ca-certificates
 
       - name: Build release
-        run: make wasm-release WASM_JOBS="-j$(nproc)"
+        run: make wasm-release CMAKE=/usr/bin/cmake WASM_JOBS="-j$(nproc)"
 
       - name: Prepare Pages artifact
         run: |

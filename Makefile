@@ -3,6 +3,7 @@
 WASM_DEV_BUILD_DIR ?= build-wasm
 WASM_RELEASE_BUILD_DIR ?= build-wasm-release
 WASM_JOBS ?= -j
+CMAKE ?= cmake
 
 WASM_COMMON_CMAKE_ARGS := \
 	-G Ninja \
@@ -19,18 +20,18 @@ WASM_COMMON_CMAKE_ARGS := \
 	-DUSE_SYSTEM_LIBZIP=OFF
 
 wasm-dev-config:
-	emcmake cmake -S . -B $(WASM_DEV_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWASM_MAX_PERF=OFF -DWASM_ENABLE_LTO=OFF -DWASM_MALLOC=emmalloc
+	emcmake $(CMAKE) -S . -B $(WASM_DEV_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWASM_MAX_PERF=OFF -DWASM_ENABLE_LTO=OFF -DWASM_MALLOC=emmalloc
 
 wasm-dev-build:
-	cmake --build $(WASM_DEV_BUILD_DIR) $(WASM_JOBS)
+	$(CMAKE) --build $(WASM_DEV_BUILD_DIR) $(WASM_JOBS)
 
 wasm-dev: wasm-dev-config wasm-dev-build
 
 wasm-release-config:
-	emcmake cmake -S . -B $(WASM_RELEASE_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=Release -DWASM_MAX_PERF=ON -DWASM_ENABLE_LTO=ON -DWASM_MALLOC=mimalloc
+	emcmake $(CMAKE) -S . -B $(WASM_RELEASE_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=Release -DWASM_MAX_PERF=ON -DWASM_ENABLE_LTO=ON -DWASM_MALLOC=mimalloc
 
 wasm-release-build:
-	cmake --build $(WASM_RELEASE_BUILD_DIR) $(WASM_JOBS)
+	$(CMAKE) --build $(WASM_RELEASE_BUILD_DIR) $(WASM_JOBS)
 
 wasm-release: wasm-release-config wasm-release-build
 
