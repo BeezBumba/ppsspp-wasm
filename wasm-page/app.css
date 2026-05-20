@@ -1304,6 +1304,12 @@ button.danger:hover { background: rgba(255,95,95,.1); border-color: var(--danger
 .save-game-header { display:none; }
 .save-slot { display:none; }
 .saves-stats { padding: 6px 12px 4px; font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
+/* Drive sync buttons — hidden until Google Drive is connected */
+.drive-sync-btn { display: none !important; }
+body.drive-connected .drive-sync-btn { display: inline-flex !important; }
+.save-card-actions button.drive-sync-btn:hover { background: rgba(0,212,170,.12); border-color: rgba(0,212,170,.4); color: var(--accent); }
+.save-state-actions button.drive-sync-btn:hover { background: rgba(0,212,170,.12); border-color: rgba(0,212,170,.4); color: var(--accent); }
+.game-card-actions button.icon-only.drive-sync-btn:hover { background: rgba(0,212,170,.12); border-color: rgba(0,212,170,.4); color: var(--accent); }
 #opfsFileList { margin-top: 4px; flex: 1; overflow-y: auto;
   scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
 .opfs-cat-header {

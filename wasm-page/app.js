@@ -127,8 +127,9 @@ const LUCIDE_PATHS = {
   trash:    '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
   save:     '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
   gamepad:  '<line x1="6" y1="11" x2="10" y2="11"/><line x1="8" y1="9" x2="8" y2="13"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="17" y1="10" x2="17.01" y2="10"/><path d="M6 3h12l2 7-6 3-2 3-2-3-6-3z"/>',
-  info:     '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
-  menu:     '<line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/>',
+  info:           '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  menu:           '<line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/>',
+  'cloud-upload': '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>',
 };
 function svgIcon(name, cls = "lucide") {
   const d = LUCIDE_PATHS[name] || "";
@@ -882,6 +883,7 @@ async function refreshLibrary() {
             <div class="game-card-actions">
               <button data-action="play" data-game="${esc(game.path)}"${primaryDisabled}>${primary}</button>
               <button class="icon-only" title="Info" data-action="info" data-game="${esc(game.path)}">${svgIcon("info")}</button>
+              <button class="icon-only drive-sync-btn" title="Upload ISO to Drive" data-action="drive-upload" data-game="${esc(game.path)}">${svgIcon("cloud-upload")}</button>
               <button class="icon-only danger" title="Delete" data-action="delete" data-game="${esc(game.path)}">${svgIcon("trash")}</button>
             </div>
           </div>
@@ -1189,6 +1191,7 @@ async function refreshSavesTab() {
       html += `</div>`;
       html += `<div class="save-card-actions">`;
       html += `<button title="Download slot" data-save-action="download-slot" data-slot-dir="${esc(slotDir)}" data-game="${esc(game)}">${svgIcon("download")}</button>`;
+      html += `<button class="drive-sync-btn" title="Upload slot to Drive" data-save-action="drive-upload-slot" data-slot-dir="${esc(slotDir)}" data-game="${esc(game)}">${svgIcon("cloud-upload")}</button>`;
       html += `<button class="del" title="Delete slot" data-save-action="delete-slot" data-slot-dir="${esc(slotDir)}" data-game="${esc(game)}">${svgIcon("trash")}</button>`;
       html += `</div>`;
       html += `</div>`;
@@ -1234,6 +1237,7 @@ async function refreshSavesTab() {
       html += `</div>`;
       html += `<div class="save-state-actions">`;
       if (dataFile) html += `<button title="Download" data-save-action="download-file" data-path="${esc(dataFile.path)}">${svgIcon("download")}</button>`;
+      html += `<button class="drive-sync-btn" title="Upload state to Drive" data-save-action="drive-upload-state" data-paths="${esc(JSON.stringify(allPaths))}" data-game="${esc(game)}">${svgIcon("cloud-upload")}</button>`;
       html += `<button class="del" title="Delete" data-save-action="delete-pair" data-paths="${esc(JSON.stringify(allPaths))}">${svgIcon("trash")}</button>`;
       html += `</div>`;
       html += `</div>`;
@@ -1293,6 +1297,104 @@ async function downloadSaveSlot(slotDir, gameName) {
   triggerDownload(blob, "ppsspp-slot-" + gameName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".ppsspp");
   log("Downloaded slot: " + gameName + " (" + files.length + " files)", "ok");
   showToast("✓ Downloaded " + gameName);
+}
+
+/* ── Individual Drive upload helpers ────────────────────────────── */
+async function uploadSingleSaveSlotToDrive(slotDir, gameName) {
+  if (!googleAccessToken) { showToast("⚠ Connect Google Drive first"); return; }
+  try {
+    setDriveActivity("Uploading slot " + gameName + "…", "run");
+    if (window.FS) await persistFiles(window.FS, "drive-slot");
+    await ensureDriveFolders(true);
+    const all = await opfsWalk();
+    const slotFiles = all.filter(e => e.path.startsWith(slotDir + "/"));
+    const FS = window.FS;
+    if (FS) {
+      const fsFiles = readSaveSlotFiles(FS, slotDir);
+      for (const { path } of fsFiles) {
+        if (!slotFiles.find(e => e.path === path)) {
+          try { slotFiles.push({ path, data: FS.readFile(path) }); } catch(e) {}
+        }
+      }
+    }
+    if (!slotFiles.length) { showToast("No files in slot"); setDriveActivity("Idle"); return; }
+    const bundle = {
+      version: 1, exported: new Date().toISOString(),
+      slot: gameName, slotDir,
+      files: slotFiles.map(({ path, data }) => ({ name: path.split("/").pop(), path, data: bytesToBase64(data) }))
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(bundle));
+    const remoteName = "ppsspp-slot-" + gameName.replace(/[^a-zA-Z0-9_-]/g, "_") + ".ppsspp";
+    showLoading("Uploading " + remoteName + " to Drive…");
+    await uploadBlobToDrive(remoteName, googleDriveSavesId, bytes, "application/json", "Uploading slot");
+    log("Google Drive: uploaded slot " + gameName + " (" + slotFiles.length + " files).", "ok");
+    setDriveActivity("Uploaded slot " + gameName, "ok");
+    showToast("✓ Slot " + gameName + " uploaded to Drive");
+    await refreshDriveList();
+  } catch(e) {
+    const message = googleAuthErrorMessage(e);
+    log("Drive slot upload failed: " + message, "err");
+    setDriveActivity("Slot upload failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
+  } finally { hideLoading(); }
+}
+
+async function uploadSingleSaveStateToDrive(paths, gameName) {
+  if (!googleAccessToken) { showToast("⚠ Connect Google Drive first"); return; }
+  try {
+    setDriveActivity("Uploading state for " + gameName + "…", "run");
+    if (window.FS) await persistFiles(window.FS, "drive-state");
+    await ensureDriveFolders(true);
+    const FS = window.FS;
+    const fileEntries = [];
+    for (const path of paths) {
+      let data;
+      try { data = await opfsRead(path); } catch(e) {
+        if (FS) { try { data = FS.readFile(path); } catch(e2) {} }
+      }
+      if (data) fileEntries.push({ path, data });
+    }
+    if (!fileEntries.length) { showToast("No state files found"); setDriveActivity("Idle"); return; }
+    const baseName = paths[0].split("/").pop().replace(/\.[^.]+$/, "");
+    const bundle = {
+      version: 1, exported: new Date().toISOString(),
+      slot: gameName,
+      files: fileEntries.map(({ path, data }) => ({ name: path.split("/").pop(), path, data: bytesToBase64(data) }))
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(bundle));
+    const remoteName = "ppsspp-state-" + gameName.replace(/[^a-zA-Z0-9_-]/g, "_") + "-" + baseName + ".ppsspp";
+    showLoading("Uploading " + remoteName + " to Drive…");
+    await uploadBlobToDrive(remoteName, googleDriveSavesId, bytes, "application/json", "Uploading state");
+    log("Google Drive: uploaded state " + remoteName + ".", "ok");
+    setDriveActivity("Uploaded state " + baseName, "ok");
+    showToast("✓ State " + baseName + " uploaded to Drive");
+    await refreshDriveList();
+  } catch(e) {
+    const message = googleAuthErrorMessage(e);
+    log("Drive state upload failed: " + message, "err");
+    setDriveActivity("State upload failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
+  } finally { hideLoading(); }
+}
+
+async function uploadSingleGameToDrive(gameName) {
+  if (!googleAccessToken) { showToast("⚠ Connect Google Drive first"); return; }
+  try {
+    setDriveActivity("Uploading ISO " + gameName + "…", "run");
+    await ensureDriveFolders(true);
+    showLoading("Uploading " + gameName + " to Drive…");
+    const bytes = await opfsReadGame(gameName);
+    await uploadBlobToDrive(gameName, googleDriveGamesId, bytes, "application/octet-stream", "Uploading ISO");
+    log("Google Drive: uploaded ISO " + gameName + " (" + formatBytes(bytes.byteLength) + ").", "ok");
+    setDriveActivity("Uploaded " + gameName + " to Drive", "ok");
+    showToast("✓ " + gameName + " uploaded to Drive");
+    await refreshDriveList();
+  } catch(e) {
+    const message = googleAuthErrorMessage(e);
+    log("Drive ISO upload failed: " + message, "err");
+    setDriveActivity("ISO upload failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
+  } finally { hideLoading(); }
 }
 
 async function deleteSaveFile(path) {
@@ -1705,6 +1807,7 @@ function resumePendingDriveAction(action) {
 }
 
 function setDriveInfo(auth, cls) {
+  document.body.classList.toggle("drive-connected", !!googleAccessToken);
   if (driveAuthEl) {
     driveAuthEl.textContent = auth || (googleAccessToken ? "Connected" : "Not connected");
     driveAuthEl.className = "info-val" + (cls ? " " + cls : (googleAccessToken ? " good" : ""));
@@ -3441,6 +3544,7 @@ document.getElementById("libraryGrid").addEventListener("click", e => {
   if (!name) return;
   if (button.dataset.action === "play") playOrMountStoredGame(name);
   else if (button.dataset.action === "info") showGameInfo(name);
+  else if (button.dataset.action === "drive-upload") runDriveAction("upload-game", () => uploadSingleGameToDrive(name));
   else if (button.dataset.action === "delete") deleteStoredFile(VIRTUAL_GAME_DIR + "/" + name);
 });
 document.getElementById("libraryImportFile").addEventListener("change", e => {
@@ -3478,10 +3582,14 @@ document.getElementById("savesList").addEventListener("click", async e => {
   try {
     if (action === "download-slot") {
       await downloadSaveSlot(button.dataset.slotDir, button.dataset.game);
+    } else if (action === "drive-upload-slot") {
+      await runDriveAction("upload-slot", () => uploadSingleSaveSlotToDrive(button.dataset.slotDir, button.dataset.game));
     } else if (action === "delete-slot") {
       await deleteSaveSlot(button.dataset.slotDir, button.dataset.game);
     } else if (action === "download-file") {
       await downloadSaveFile(button.dataset.path);
+    } else if (action === "drive-upload-state") {
+      await runDriveAction("upload-state", () => uploadSingleSaveStateToDrive(JSON.parse(button.dataset.paths || "[]"), button.dataset.game));
     } else if (action === "delete-pair") {
       await deleteSavePair(JSON.parse(button.dataset.paths || "[]"));
     }
