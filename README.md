@@ -1,3 +1,48 @@
+PPSSPP Web - unofficial WebAssembly fork
+========================================
+
+This repository is an unofficial fork of [PPSSPP](https://github.com/hrydgard/ppsspp)
+focused on building and publishing a browser-based WebAssembly version of the
+emulator.
+
+The fork keeps the original PPSSPP source, credits, and license terms, while
+adding the `wasm` branch work needed for the web player, GitHub Pages deployment,
+PWA shell, browser storage helpers, and WebAssembly build workflow.
+
+Project links
+-------------
+
+- Live web build: https://root-hunter.github.io/ppsspp-web/
+- Fork repository: https://github.com/root-hunter/ppsspp-web
+- Fork maintainer: [roothunter](https://github.com/root-hunter)
+- Original project: https://github.com/hrydgard/ppsspp
+- Original website: https://www.ppsspp.org/
+- Original documentation: https://www.ppsspp.org/docs
+
+Fork notes
+----------
+
+- This is a community fork, not an official PPSSPP release.
+- The web build runs PPSSPP in the browser through WebAssembly/Emscripten.
+- The GitHub Pages build is handled by `.github/workflows/wasm-pages.yml`.
+- Browser data such as saves and settings may be stored locally by the web app.
+- Games, BIOS files, or copyrighted PSP software are not included.
+
+License and attribution
+-----------------------
+
+PPSSPP was created by Henrik Rydgård, with additional code by many contributors.
+This fork preserves the original PPSSPP attribution and remains under the same
+GPL 2.0-or-later licensing terms. See [LICENSE.TXT](LICENSE.TXT) for the full
+license text and bundled notices. Third-party dependencies may include their own
+licenses in their respective directories.
+
+When redistributing this fork or builds made from it, keep the original PPSSPP
+credits, license notices, and source availability requirements intact.
+
+Original PPSSPP README
+======================
+
 PPSSPP - a fast and portable PSP emulator
 =========================================
 
