@@ -836,7 +836,7 @@ button.danger:hover { background: rgba(255,95,95,.1); border-color: var(--danger
   display: flex; flex-direction: column; gap: 12px;
 }
 .drive-config {
-  display: grid; grid-template-columns: minmax(0, 1fr) 32px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 32px 32px;
   gap: 6px; margin-bottom: 8px;
 }
 #googleClientIdInput {
@@ -862,6 +862,19 @@ button.danger:hover { background: rgba(255,95,95,.1); border-color: var(--danger
   padding: 8px 10px; border: 1px solid var(--border);
   border-radius: var(--radius-sm); background: rgba(91,164,232,.055);
 }
+.drive-activity {
+  color: var(--muted); font-size: 10.5px; line-height: 1.45;
+  min-height: 30px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+.drive-activity.ok { color: var(--accent); border-color: rgba(0,212,170,.26); background: rgba(0,212,170,.055); }
+.drive-activity.run { color: var(--warn); border-color: rgba(245,166,35,.26); background: rgba(245,166,35,.055); }
+.drive-activity.warn { color: var(--warn); border-color: rgba(245,166,35,.26); }
+.drive-activity.bad { color: var(--danger); border-color: rgba(255,95,95,.28); background: rgba(255,95,95,.055); }
 #driveRemoteList {
   min-height: 80px; overflow-y: auto; border-top: 1px solid var(--border);
 }

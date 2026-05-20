@@ -102,6 +102,7 @@ const googleClientIdInput = document.getElementById("googleClientIdInput");
 const driveAuthEl     = document.getElementById("iDriveAuth");
 const driveFolderEl   = document.getElementById("iDriveFolder");
 const driveRemoteEl   = document.getElementById("iDriveRemote");
+const driveActivityEl = document.getElementById("driveActivity");
 const driveRemoteList = document.getElementById("driveRemoteList");
 
 // Panel toggle (hidden by default; restore from localStorage)
@@ -1525,6 +1526,12 @@ function setDriveInfo(auth, cls) {
   }
 }
 
+function setDriveActivity(text, cls) {
+  if (!driveActivityEl) return;
+  driveActivityEl.textContent = text || "Idle";
+  driveActivityEl.className = "drive-activity" + (cls ? " " + cls : "");
+}
+
 function initDriveConfigUI() {
   if (googleClientIdInput) googleClientIdInput.value = googleClientId();
   setDriveInfo();
@@ -1554,13 +1561,13 @@ async function ensureGoogleToken(interactive) {
   const clientId = googleClientId();
   if (!clientId) throw new Error("Set a Google OAuth Web client ID first");
   if (googleAccessToken && Date.now() < googleTokenExpiresAt - 60000) return googleAccessToken;
+  if (!interactive) throw new Error("Connect Google Drive first");
 
   await loadGoogleIdentityScript();
   return new Promise((resolve, reject) => {
     googleTokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: GOOGLE_DRIVE_SCOPE,
-      prompt: interactive ? "consent" : "",
       callback: (response) => {
         if (response.error) {
           reject(new Error(response.error_description || response.error));
@@ -1572,7 +1579,7 @@ async function ensureGoogleToken(interactive) {
         resolve(googleAccessToken);
       },
     });
-    try { googleTokenClient.requestAccessToken({ prompt: interactive ? "consent" : "" }); }
+    try { googleTokenClient.requestAccessToken({ prompt: "consent" }); }
     catch(e) { reject(e); }
   });
 }
@@ -1590,6 +1597,7 @@ function disconnectGoogleDrive() {
   }
   renderDriveRemoteList();
   setDriveInfo("Not connected");
+  setDriveActivity("Disconnected");
   showToast("Google Drive disconnected");
 }
 
@@ -1710,6 +1718,7 @@ async function uploadBlobToDrive(name, parentId, data, mimeType, progressLabel) 
 }
 
 async function refreshDriveList() {
+  setDriveActivity("Reading Drive folders…", "run");
   await ensureDriveFolders();
   const fields = "id,name,mimeType,size,modifiedTime";
   googleDriveRemoteCache.saves = await driveList("'" + driveQuote(googleDriveSavesId) + "' in parents and trashed = false", fields);
@@ -1718,6 +1727,7 @@ async function refreshDriveList() {
   googleDriveRemoteCache.games.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
   renderDriveRemoteList();
   setDriveInfo("Connected", "good");
+  setDriveActivity("Drive ready: " + googleDriveRemoteCache.saves.length + " save bundle(s), " + googleDriveRemoteCache.games.length + " ISO(s)", "ok");
 }
 
 function renderDriveRemoteList() {
@@ -1763,12 +1773,14 @@ async function driveDownloadBytes(file, label) {
 
 async function connectGoogleDrive() {
   try {
+    setDriveActivity("Opening Google login…", "run");
     await ensureGoogleToken(true);
     showToast("Google Drive connected");
     await refreshDriveList();
   } catch(e) {
     log("Google Drive connect failed: " + e.message, "err");
     setDriveInfo("Connect failed", "bad");
+    setDriveActivity("Connect failed: " + e.message, "bad");
     showToast("❌ " + e.message, 5000);
   } finally {
     hideLoading();
@@ -1777,18 +1789,26 @@ async function connectGoogleDrive() {
 
 async function uploadSavesToDrive() {
   try {
+    setDriveActivity("Preparing save bundle…", "run");
     if (window.FS) await persistFiles(window.FS, "drive");
     await ensureDriveFolders();
     const bundle = await buildSavesBundle();
-    if (!bundle) { showToast("No save data to upload."); return; }
+    if (!bundle) {
+      setDriveActivity("No save data found to upload", "warn");
+      showToast("No save data to upload.");
+      return;
+    }
     const bytes = new TextEncoder().encode(JSON.stringify(bundle));
+    setDriveActivity("Uploading saves bundle (" + formatBytes(bytes.byteLength) + ")…", "run");
     showLoading("Uploading saves to Drive…");
     await uploadBlobToDrive(GOOGLE_DRIVE_SAVE_BUNDLE, googleDriveSavesId, bytes, "application/json", "Uploading saves");
     log("Google Drive: uploaded saves bundle with " + bundle.files.length + " files.", "ok");
+    setDriveActivity("Uploaded saves bundle with " + bundle.files.length + " file(s)", "ok");
     showToast("✓ Saves uploaded to Drive");
     await refreshDriveList();
   } catch(e) {
     log("Google Drive save upload failed: " + e.message, "err");
+    setDriveActivity("Save upload failed: " + e.message, "bad");
     showToast("❌ " + e.message, 5000);
   } finally {
     hideLoading();
@@ -1797,16 +1817,24 @@ async function uploadSavesToDrive() {
 
 async function restoreDriveSave(file) {
   try {
+    setDriveActivity("Preparing save restore…", "run");
     await ensureDriveFolders();
     const target = file || googleDriveRemoteCache.saves[0];
-    if (!target) { showToast("No Drive save bundle found"); return; }
+    if (!target) {
+      setDriveActivity("No Drive save bundle found", "warn");
+      showToast("No Drive save bundle found");
+      return;
+    }
     showLoading("Downloading saves from Drive…");
+    setDriveActivity("Downloading " + target.name + "…", "run");
     const bytes = await driveDownloadBytes(target, target.name);
     const bundle = JSON.parse(new TextDecoder().decode(bytes));
     await importSavesBundle(bundle, "Google Drive " + target.name);
     log("Google Drive: restored saves from " + target.name + ".", "ok");
+    setDriveActivity("Restored saves from " + target.name, "ok");
   } catch(e) {
     log("Google Drive save restore failed: " + e.message, "err");
+    setDriveActivity("Save restore failed: " + e.message, "bad");
     showToast("❌ " + e.message, 5000);
   } finally {
     hideLoading();
@@ -1815,21 +1843,29 @@ async function restoreDriveSave(file) {
 
 async function uploadGamesToDrive() {
   try {
+    setDriveActivity("Scanning local ISO library…", "run");
     await ensureDriveFolders();
     const games = await opfsWalk(OPFS_GAMES_DIR, "", false);
-    if (!games.length) { showToast("No local ISOs in OPFS to upload"); return; }
+    if (!games.length) {
+      setDriveActivity("No local ISOs in OPFS to upload", "warn");
+      showToast("No local ISOs in OPFS to upload");
+      return;
+    }
     let done = 0;
     for (const game of games) {
+      setDriveActivity("Uploading ISO " + (done + 1) + "/" + games.length + ": " + game.path, "run");
       const bytes = await opfsReadGame(game.path);
       await uploadBlobToDrive(game.path, googleDriveGamesId, bytes, "application/octet-stream",
         "Uploading ISO " + (done + 1) + "/" + games.length);
       done++;
       log("Google Drive: uploaded ISO " + game.path + " (" + formatBytes(bytes.byteLength) + ").", "ok");
     }
+    setDriveActivity("Uploaded " + done + " ISO" + (done === 1 ? "" : "s") + " to Drive", "ok");
     showToast("✓ Uploaded " + done + " ISO" + (done === 1 ? "" : "s") + " to Drive");
     await refreshDriveList();
   } catch(e) {
     log("Google Drive ISO upload failed: " + e.message, "err");
+    setDriveActivity("ISO upload failed: " + e.message, "bad");
     showToast("❌ " + e.message, 5000);
   } finally {
     hideLoading();
@@ -1838,16 +1874,20 @@ async function uploadGamesToDrive() {
 
 async function downloadDriveGame(file) {
   try {
+    setDriveActivity("Preparing ISO download…", "run");
     await ensureDriveFolders();
     showLoading("Downloading " + file.name + " from Drive…");
+    setDriveActivity("Downloading " + file.name + "…", "run");
     const bytes = await driveDownloadBytes(file, file.name);
     const storedName = await storeGameBytes(file.name, bytes);
     log("Google Drive: downloaded ISO " + storedName + " (" + formatBytes(bytes.byteLength) + ").", "ok");
+    setDriveActivity("Downloaded " + storedName + " to OPFS", "ok");
     showToast("✓ Downloaded " + storedName);
     await refreshLibrary();
     updateStorageInfo();
   } catch(e) {
     log("Google Drive ISO download failed: " + e.message, "err");
+    setDriveActivity("ISO download failed: " + e.message, "bad");
     showToast("❌ " + e.message, 5000);
   } finally {
     hideLoading();
@@ -1856,14 +1896,21 @@ async function downloadDriveGame(file) {
 
 async function downloadAllDriveGames() {
   try {
+    setDriveActivity("Preparing remote ISO downloads…", "run");
     await ensureDriveFolders();
     if (!googleDriveRemoteCache.games.length) await refreshDriveList();
     const games = googleDriveRemoteCache.games;
-    if (!games.length) { showToast("No remote ISOs found"); return; }
+    if (!games.length) {
+      setDriveActivity("No remote ISOs found", "warn");
+      showToast("No remote ISOs found");
+      return;
+    }
     for (const game of games) await downloadDriveGame(game);
+    setDriveActivity("Downloaded " + games.length + " remote ISO" + (games.length === 1 ? "" : "s"), "ok");
     showToast("✓ Downloaded " + games.length + " remote ISO" + (games.length === 1 ? "" : "s"));
   } catch(e) {
     log("Google Drive bulk ISO download failed: " + e.message, "err");
+    setDriveActivity("Bulk ISO download failed: " + e.message, "bad");
     showToast("❌ " + e.message, 5000);
   } finally {
     hideLoading();
@@ -3249,11 +3296,23 @@ document.getElementById("saveGoogleClientIdBtn").addEventListener("click", () =>
   setDriveInfo(value ? "Client ID saved" : "Client ID cleared", value ? "good" : "");
   showToast(value ? "Google client ID saved" : "Google client ID cleared");
 });
+document.getElementById("toggleGoogleClientIdBtn").addEventListener("click", () => {
+  if (!googleClientIdInput) return;
+  const visible = googleClientIdInput.type === "text";
+  googleClientIdInput.type = visible ? "password" : "text";
+  const button = document.getElementById("toggleGoogleClientIdBtn");
+  button.title = visible ? "Show client ID" : "Hide client ID";
+  button.textContent = visible ? "\uD83D\uDC41" : "\u25CF";
+});
 document.getElementById("driveConnectBtn").addEventListener("click", connectGoogleDrive);
 document.getElementById("driveDisconnectBtn").addEventListener("click", disconnectGoogleDrive);
 document.getElementById("driveRefreshBtn").addEventListener("click", async () => {
   try { await refreshDriveList(); showToast("✓ Drive refreshed"); }
-  catch(e) { log("Google Drive refresh failed: " + e.message, "err"); showToast("❌ " + e.message, 5000); }
+  catch(e) {
+    log("Google Drive refresh failed: " + e.message, "err");
+    setDriveActivity("Refresh failed: " + e.message, "bad");
+    showToast("❌ " + e.message, 5000);
+  }
 });
 document.getElementById("driveUploadSavesBtn").addEventListener("click", uploadSavesToDrive);
 document.getElementById("driveRestoreSavesBtn").addEventListener("click", () => restoreDriveSave());

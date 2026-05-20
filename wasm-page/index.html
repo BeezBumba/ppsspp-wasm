@@ -168,7 +168,8 @@
           <div class="info-group">
             <h3>Google Drive</h3>
             <div class="drive-config">
-              <input id="googleClientIdInput" type="text" spellcheck="false" autocomplete="off" placeholder="OAuth Web client ID">
+              <input id="googleClientIdInput" type="password" spellcheck="false" autocomplete="off" placeholder="OAuth Web client ID">
+              <button id="toggleGoogleClientIdBtn" title="Show client ID">&#128065;</button>
               <button id="saveGoogleClientIdBtn" title="Save client ID">&#128190;</button>
             </div>
             <div class="info-row"><span class="info-key">Auth</span> <span class="info-val" id="iDriveAuth">Not connected</span></div>
@@ -187,6 +188,7 @@
           <div class="drive-help">
             Static GitHub Pages flow: use a Google OAuth Web client ID, add this Pages origin in Google Cloud, and keep client secrets out of the app.
           </div>
+          <div id="driveActivity" class="drive-activity">Idle</div>
           <div id="driveRemoteList"><span class="drive-empty">Connect Google Drive to list remote saves and ISOs.</span></div>
         </div>
       </div>
