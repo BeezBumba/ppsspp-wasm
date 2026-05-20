@@ -3179,6 +3179,13 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
     function dirname(p) { const s = p.lastIndexOf("/"); return s === -1 ? "" : p.slice(0, s); }
 
     async function preloadAssets(FS) {
+      const atlasMeta = VIRTUAL_ASSETS + "/font_atlas.meta";
+      const atlasZim = VIRTUAL_ASSETS + "/font_atlas.zim";
+      if (FS.analyzePath(atlasMeta).exists && FS.analyzePath(atlasZim).exists) {
+        log("Assets already mounted by Emscripten preload package.", "ok");
+        return;
+      }
+
       log("Fetching asset manifest: " + MANIFEST);
       const r = await fetch(MANIFEST, { cache: "no-store" });
       if (!r.ok) throw new Error("Asset manifest not found: " + r.status);
@@ -3200,8 +3207,10 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
         }
       }
       await Promise.all(Array.from({ length: workers }, loadNext));
-      if (!FS.analyzePath(VIRTUAL_ASSETS + "/font_atlas.meta").exists)
+      if (!FS.analyzePath(atlasMeta).exists)
         throw new Error("Critical asset missing: font_atlas.meta");
+      if (!FS.analyzePath(atlasZim).exists)
+        throw new Error("Critical asset missing: font_atlas.zim");
       log("All assets loaded into MEMFS.", "ok");
     }
 

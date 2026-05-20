@@ -53,6 +53,7 @@ jobs:
 
           cp build-wasm-release/PPSSPPSDL.js public/build-wasm/
           cp build-wasm-release/PPSSPPSDL.wasm public/build-wasm/
+          cp build-wasm-release/PPSSPPSDL.data public/build-wasm/
 
           mkdir -p public/build-wasm/assets
           cp -a assets/. public/build-wasm/assets/
@@ -63,6 +64,7 @@ jobs:
           test -f public/sw.js
           test -f public/build-wasm/PPSSPPSDL.js
           test -f public/build-wasm/PPSSPPSDL.wasm
+          test -f public/build-wasm/PPSSPPSDL.data
           test -s public/assets-manifest.txt
 
       - name: Configure GitHub Pages
