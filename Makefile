@@ -39,3 +39,13 @@ wasm-config: wasm-dev-config
 wasm-build: wasm-dev-build
 config-wasm: wasm-dev-config
 build-wasm: wasm-dev-build
+
+serve:
+	python3 wasm-page/server.py
+
+docker:
+	docker run --rm -it \
+	-v /home/roothunter/lab/ppsspp:/src \
+	-w /src \
+	emscripten/emsdk:latest \
+	bash
