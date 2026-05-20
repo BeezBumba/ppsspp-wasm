@@ -26,6 +26,7 @@ private:
 	void setUpController(int deviceIndex);
 	void setUpControllers();
 	InputKeyCode getKeycodeForButton(SDL_GameControllerButton button);
+	bool getAxisForControllerAxis(SDL_GameControllerAxis controllerAxis, InputAxis *axis);
 	int getDeviceIndex(int instanceId);
 
 	bool registeredAsEventHandler;

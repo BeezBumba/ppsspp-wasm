@@ -138,9 +138,9 @@ InputKeyCode SDLJoystick::getKeycodeForButton(SDL_GameControllerButton button) {
 	case SDL_CONTROLLER_BUTTON_Y:
 		return NKCODE_BUTTON_1;
 	case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
-		return NKCODE_BUTTON_5;
+		return NKCODE_BUTTON_8;
 	case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
-		return NKCODE_BUTTON_6;
+		return NKCODE_BUTTON_7;
 	case SDL_CONTROLLER_BUTTON_START:
 		return NKCODE_BUTTON_10;
 	case SDL_CONTROLLER_BUTTON_BACK:
@@ -174,6 +174,32 @@ InputKeyCode SDLJoystick::getKeycodeForButton(SDL_GameControllerButton button) {
 	case SDL_CONTROLLER_BUTTON_INVALID:
 	default:
 		return NKCODE_UNKNOWN;
+	}
+}
+
+bool SDLJoystick::getAxisForControllerAxis(SDL_GameControllerAxis controllerAxis, InputAxis *axis) {
+	switch (controllerAxis) {
+	case SDL_CONTROLLER_AXIS_LEFTX:
+		*axis = JOYSTICK_AXIS_X;
+		return true;
+	case SDL_CONTROLLER_AXIS_LEFTY:
+		*axis = JOYSTICK_AXIS_Y;
+		return true;
+	case SDL_CONTROLLER_AXIS_RIGHTX:
+		*axis = JOYSTICK_AXIS_Z;
+		return true;
+	case SDL_CONTROLLER_AXIS_RIGHTY:
+		*axis = JOYSTICK_AXIS_RZ;
+		return true;
+	case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
+		*axis = JOYSTICK_AXIS_LTRIGGER;
+		return true;
+	case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
+		*axis = JOYSTICK_AXIS_RTRIGGER;
+		return true;
+	case SDL_CONTROLLER_AXIS_INVALID:
+	default:
+		return false;
 	}
 }
 
@@ -212,18 +238,25 @@ void SDLJoystick::ProcessInput(const SDL_Event &event){
 			break;
 		}
 		InputDeviceID deviceId = DEVICE_ID_PAD_0 + deviceIndex;
-		// TODO: Can we really cast axis IDs like that? Do they match?
-		InputAxis axisId = (InputAxis)event.caxis.axis;
+		InputAxis axisId;
+		if (!getAxisForControllerAxis((SDL_GameControllerAxis)event.caxis.axis, &axisId)) {
+			break;
+		}
 		float value = event.caxis.value * (1.f / 32767.f);
 		if (value > 1.0f) value = 1.0f;
 		if (value < -1.0f) value = -1.0f;
 		// Filter duplicate axis values.
 		auto key = std::pair<InputDeviceID, InputAxis>(deviceId, axisId);
 		auto iter = prevAxisValue_.find(key);
+		bool axisChanged = false;
 		if (iter == prevAxisValue_.end()) {
 			prevAxisValue_[key] = value;
+			axisChanged = true;
 		} else if (iter->second != value) {
 			iter->second = value;
+			axisChanged = true;
+		}
+		if (axisChanged) {
 			AxisInput axis;
 			axis.axisId = axisId;
 			axis.value = value;

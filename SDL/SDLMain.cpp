@@ -194,7 +194,7 @@ static void InitSDLAudioDevice(const std::string &name = "") {
 #endif
 	fmt.channels = 2;
 #ifdef __EMSCRIPTEN__
-	fmt.samples = std::max(g_Config.iSDLAudioBufferSize, 512);
+	fmt.samples = std::max(g_Config.iSDLAudioBufferSize, 1024);
 #else
 	fmt.samples = std::max(g_Config.iSDLAudioBufferSize, 128);
 #endif

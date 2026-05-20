@@ -2554,7 +2554,7 @@ class PPSSPPSpShim extends AudioWorkletProcessor {
     this._data     = new Float32Array(p.sab, 32, this._cap * this._nCh);
     this._last     = new Float32Array(this._nCh);
     this._ramp     = 0;
-    this._rampFrames = 64;
+    this._rampFrames = 128;
     this._tick     = 0;
   }
   process(inputs, outputs) {
@@ -2638,8 +2638,8 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       const bufsz        = bufferSize || 2048;
       const SR           = ctx.sampleRate || 44100;
       const RING_CAP     = 32768;          // ring capacity in frames
-      const LOOKAHEAD    = Math.max(SR * 0.120, bufsz * 3);
-      const MAX_FILL     = Math.max(SR * 0.220, bufsz * 5);
+      const LOOKAHEAD    = Math.max(SR * 0.150, bufsz * 3);
+      const MAX_FILL     = Math.max(SR * 0.300, bufsz * 6);
       const MAX_BURST    = 16;             // max pushes per pump call
 
       let _handler = null;
@@ -2673,12 +2673,7 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
         const used = (w - r + RING_CAP) % RING_CAP;
         const free = RING_CAP - 1 - used;
         if (bufsz > free) {
-          const drop = Math.min(bufsz - free, RING_CAP - 1);
-          r = (r + drop) % RING_CAP;
-          Atomics.store(_ctrl, 1, r);
-          _workletDropped += drop;
-          Atomics.store(_ctrl, 3, _workletDropped);
-          audioDebug.ringDropped = _workletDropped;
+          return false;
         }
         const measurePeak = (_pushCount++ & 15) === 0;
         let peak = 0;
