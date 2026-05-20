@@ -57,7 +57,7 @@ jobs:
 
           mkdir -p public/build-wasm/assets
           cp -a assets/. public/build-wasm/assets/
-          find assets -type f | sed 's#^assets/##' | LC_ALL=C sort > public/assets-manifest.txt
+          find assets -type f ! -path '*/.*' | sed 's#^assets/##' | LC_ALL=C sort > public/assets-manifest.txt
 
           touch public/.nojekyll
           test -f public/index.html

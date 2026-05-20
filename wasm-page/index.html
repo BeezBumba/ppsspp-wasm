@@ -796,6 +796,7 @@
     const BUILD_STAMP      = String(Date.now());
     const ASSET_DIR        = BUILD_DIR + "assets/";
     const MANIFEST         = "assets-manifest.txt";
+    const USE_PRELOADED_ASSETS = true;
     const VIRTUAL_ASSETS   = "/emsdk/upstream/emscripten/cache/sysroot/share/ppsspp/assets";
     const VIRTUAL_GAME_DIR = "/games";
 
@@ -3181,6 +3182,11 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
     async function preloadAssets(FS) {
       const atlasMeta = VIRTUAL_ASSETS + "/font_atlas.meta";
       const atlasZim = VIRTUAL_ASSETS + "/font_atlas.zim";
+      if (USE_PRELOADED_ASSETS) {
+        log("Assets are provided by PPSSPPSDL.data; waiting on Emscripten preload dependencies.", "ok");
+        return;
+      }
+
       if (FS.analyzePath(atlasMeta).exists && FS.analyzePath(atlasZim).exists) {
         log("Assets already mounted by Emscripten preload package.", "ok");
         return;
