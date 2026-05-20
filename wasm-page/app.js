@@ -2062,6 +2062,8 @@ async function restoreDriveSave(file) {
     await importSavesBundle(bundle, "Google Drive " + target.name);
     log("Google Drive: restored saves from " + target.name + ".", "ok");
     setDriveActivity("Restored saves from " + target.name, "ok");
+    setStatus("Restored saves from Drive", "ok");
+    showToast("✓ Restored saves from Drive");
   } catch(e) {
     const message = googleAuthErrorMessage(e);
     log("Google Drive save restore failed: " + message, "err");
@@ -2114,6 +2116,7 @@ async function downloadDriveGame(file) {
     const storedName = await storeGameBytes(file.name, bytes);
     log("Google Drive: downloaded ISO " + storedName + " (" + formatBytes(bytes.byteLength) + ").", "ok");
     setDriveActivity("Downloaded " + storedName + " to OPFS", "ok");
+    setStatus("Downloaded " + storedName + " to OPFS", "ok");
     showToast("✓ Downloaded " + storedName);
     await refreshLibrary();
     updateStorageInfo();
@@ -2400,7 +2403,11 @@ function showLoading(label, progress) {
   loadLabel.textContent = label;
   progressBar.style.width = (progress != null && progress >= 0) ? (progress * 100).toFixed(1) + "%" : "0%";
 }
-function hideLoading() { loadOverlay.classList.remove("visible"); progressBar.style.width = "0%"; }
+function hideLoading() {
+  loadOverlay.classList.remove("visible");
+  progressBar.style.width = "0%";
+  loadLabel.textContent = "";
+}
 
 /* ── System info panel ──────────────────────────────────────────── */
 function setInfoVal(id, val, cls) {
