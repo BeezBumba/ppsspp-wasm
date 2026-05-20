@@ -25,10 +25,48 @@ const GOOGLE_DRIVE_SCOPE = [
 ].join(" ");
 const GOOGLE_GIS_SRC = "https://accounts.google.com/gsi/client";
 
+let stableViewportWidth = 0;
+let stableViewportHeight = 0;
+
+function isTextEntryActive() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  return el.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function syncViewportAfterFocus() {
+  syncViewportSize();
+  setTimeout(() => {
+    syncViewportSize();
+    if (isTextEntryActive()) {
+      document.activeElement.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    }
+  }, 260);
+}
+
 function syncViewportSize() {
   const vv = window.visualViewport;
-  const height = Math.max(320, Math.round(vv?.height || window.innerHeight || document.documentElement.clientHeight));
-  document.documentElement.style.setProperty("--app-h", height + "px");
+  const visualHeight = Math.round(vv?.height || window.innerHeight || document.documentElement.clientHeight || 0);
+  const layoutHeight = Math.round(window.innerHeight || document.documentElement.clientHeight || visualHeight);
+  const width = Math.round(vv?.width || window.innerWidth || document.documentElement.clientWidth || 0);
+  const widthChanged = !stableViewportWidth || Math.abs(width - stableViewportWidth) > 80;
+  const safeVisualHeight = Math.max(1, visualHeight || layoutHeight || 320);
+  const safeLayoutHeight = Math.max(320, layoutHeight || safeVisualHeight);
+
+  if (widthChanged) {
+    stableViewportWidth = width;
+    stableViewportHeight = Math.max(safeVisualHeight, safeLayoutHeight);
+  }
+
+  const keyboardOpen = isTextEntryActive() && stableViewportHeight && safeVisualHeight < stableViewportHeight * 0.82;
+  if (!keyboardOpen) {
+    stableViewportHeight = Math.max(safeVisualHeight, safeLayoutHeight);
+  }
+
+  document.body?.classList.toggle("keyboard-open", keyboardOpen);
+  document.documentElement.style.setProperty("--app-h", Math.max(320, stableViewportHeight || visualHeight) + "px");
+  document.documentElement.style.setProperty("--visual-h", safeVisualHeight + "px");
 }
 
 function notifyRuntimeResize() {
@@ -45,6 +83,8 @@ window.addEventListener("resize", syncViewportSize, { passive: true });
 window.addEventListener("orientationchange", () => setTimeout(notifyRuntimeResize, 120), { passive: true });
 window.visualViewport?.addEventListener("resize", syncViewportSize, { passive: true });
 window.visualViewport?.addEventListener("scroll", syncViewportSize, { passive: true });
+document.addEventListener("focusin", syncViewportAfterFocus);
+document.addEventListener("focusout", () => setTimeout(syncViewportSize, 120));
 
 function setBuildDir(dir) {
   BUILD_DIR = dir;

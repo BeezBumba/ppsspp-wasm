@@ -507,7 +507,18 @@ body.panel-open aside { display: grid; }
     --stage-pad: 0px;
   }
 
-  body { font-size: 13px; }
+  html,
+  body {
+    height: var(--app-h);
+    min-height: var(--app-h);
+    overflow: hidden;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
+    font-size: 13px;
+  }
 
   header {
     display: grid;
@@ -682,6 +693,13 @@ body.panel-open aside { display: grid; }
     grid-template-rows: none;
     overflow: hidden;
   }
+  body.keyboard-open.panel-open aside {
+    top: max(8px, env(safe-area-inset-top));
+    bottom: auto;
+    height: max(1px, calc(var(--visual-h) - env(safe-area-inset-top) - 8px));
+    max-height: max(1px, calc(var(--visual-h) - env(safe-area-inset-top) - 8px));
+    border-radius: 12px 12px 0 0;
+  }
   /* Ensure flex chain allows tab content to scroll in portrait drawer */
   body.panel-open aside .tab-panel { flex: 1; min-height: 0; overflow: hidden; }
   body.panel-open aside .tab-panel.active { display: flex; flex-direction: column; min-height: 0; }
@@ -844,6 +862,12 @@ body.panel-open aside { display: grid; }
     display: flex; flex-direction: column;
     overflow: hidden;
     grid-template-rows: none;
+  }
+  body.keyboard-open.panel-open aside {
+    top: var(--h);
+    bottom: auto;
+    height: max(1px, calc(var(--visual-h) - var(--h)));
+    max-height: max(1px, calc(var(--visual-h) - var(--h)));
   }
   body.panel-open aside::before { display: none; }
   /* In landscape the aside is flex-column — ensure every child shrinks correctly */
