@@ -2638,9 +2638,9 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       const bufsz        = bufferSize || 2048;
       const SR           = ctx.sampleRate || 44100;
       const RING_CAP     = 32768;          // ring capacity in frames
-      const LOOKAHEAD    = Math.max(SR * 0.090, bufsz * 2);
-      const MAX_FILL     = Math.max(SR * 0.160, bufsz * 3);
-      const MAX_BURST    = 8;              // max pushes per pump call
+      const LOOKAHEAD    = Math.max(SR * 0.120, bufsz * 3);
+      const MAX_FILL     = Math.max(SR * 0.220, bufsz * 5);
+      const MAX_BURST    = 16;             // max pushes per pump call
 
       let _handler = null;
       let _wn      = null;
@@ -2657,6 +2657,7 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       let _lastUnderruns = 0;
       let _adaptiveExtra = 0;
       let _lastUnderrunTime = 0;
+      let _pushCount = 0;
 
       try {
         _fakeBuf = ctx.createBuffer(nCh, bufsz, SR);
@@ -2666,7 +2667,6 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       /* Push ONE SDL callback's worth of audio to the worklet ring */
       function pushOne() {
         if (!_handler || !_fakeBuf || !_wn || !_ctrl || !_data) return false;
-        for (let c = 0; c < nCh; c++) _fakeChannels[c].fill(0);
         try { _handler({ outputBuffer: _fakeBuf }); } catch(e) { return false; }
         let w = Atomics.load(_ctrl, 0);
         let r = Atomics.load(_ctrl, 1);
@@ -2680,19 +2680,22 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
           Atomics.store(_ctrl, 3, _workletDropped);
           audioDebug.ringDropped = _workletDropped;
         }
+        const measurePeak = (_pushCount++ & 15) === 0;
         let peak = 0;
         for (let i = 0; i < bufsz; i++) {
           for (let c = 0; c < nCh; c++) {
             const sample = _fakeChannels[c][i];
             _data[w * nCh + c] = sample;
-            peak = Math.max(peak, Math.abs(sample));
+            if (measurePeak) peak = Math.max(peak, Math.abs(sample));
           }
           w = (w + 1) % RING_CAP;
         }
         audioDebug.callbacks++;
         audioDebug.rate = SR;
-        audioDebug.peak = Math.round(peak * 32767);
-        if (peak > 0) audioDebug.nonsilent++;
+        if (measurePeak) {
+          audioDebug.peak = Math.round(peak * 32767);
+          if (peak > 0) audioDebug.nonsilent++;
+        }
         Atomics.store(_ctrl, 0, w);
         return true;
       }
@@ -2733,8 +2736,9 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
 
       function startPump() {
         if (_timerId) return;
-        // 4 ms tick — clock-lock prevents over-pushing even if it bursts
-        _timerId = setInterval(pump, 4);
+        pump();
+        // Short tick with ring-fill gating: stable under main-thread jitter without over-pushing.
+        _timerId = setInterval(pump, 2);
         log('AUDIO SP-shim: pump started (bufsz=' + bufsz + ' SR=' + SR +
             ' lookahead=' + Math.round(LOOKAHEAD) + 'fr / ' +
             (LOOKAHEAD * 1000 / SR).toFixed(0) + 'ms).', 'ok');

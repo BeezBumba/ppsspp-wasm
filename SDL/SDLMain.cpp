@@ -193,7 +193,11 @@ static void InitSDLAudioDevice(const std::string &name = "") {
 	fmt.format = AUDIO_S16;
 #endif
 	fmt.channels = 2;
+#ifdef __EMSCRIPTEN__
+	fmt.samples = std::max(g_Config.iSDLAudioBufferSize, 512);
+#else
 	fmt.samples = std::max(g_Config.iSDLAudioBufferSize, 128);
+#endif
 	fmt.callback = &sdl_mixaudio_callback;
 	fmt.userdata = nullptr;
 
