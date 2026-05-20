@@ -9,7 +9,7 @@
  * The cache is versioned; old caches are pruned on activate.
  */
 
-const CACHE_VERSION = "ppsspp-v6";
+const CACHE_VERSION = "ppsspp-v10";
 
 // Files that form the app shell – fetched fresh every time if online
 const SHELL_FILES = [

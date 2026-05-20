@@ -101,6 +101,7 @@ panelToggleBtn.addEventListener("click", () => {
 let selectedGame = null;
 let selectedStoredGame = null;
 let started      = false;
+let runtimeReady = false;
 const trackedAudioContexts = [];
 const audioDebug = {
   callbacks: 0, nonsilent: 0, peak: 0, rate: 0, deviceStarted: false,
@@ -116,6 +117,46 @@ function updateIdleOverlay() {
   if (idleSubtitle) idleSubtitle.textContent = text;
 }
 updateIdleOverlay();
+
+function setStartButtonMode(mode) {
+  if (mode === "pause") {
+    startBtn.disabled = false;
+    startBtn.title = "Pause / PPSSPP menu";
+    startBtn.innerHTML = "&#9208;<span class=\"btn-lbl\"> Menu</span>";
+  } else if (mode === "loading") {
+    startBtn.disabled = true;
+    startBtn.title = "Starting PPSSPP";
+    startBtn.innerHTML = "&#9654;<span class=\"btn-lbl\"> Launch</span>";
+  } else {
+    startBtn.disabled = false;
+    startBtn.title = "Launch PPSSPP";
+    startBtn.innerHTML = "&#9654;<span class=\"btn-lbl\"> Launch</span>";
+  }
+}
+
+function dispatchEscape(target, type) {
+  const ev = new KeyboardEvent(type, {
+    key: "Escape",
+    code: "Escape",
+    keyCode: 27,
+    which: 27,
+    bubbles: true,
+    cancelable: true,
+  });
+  target.dispatchEvent(ev);
+}
+
+function openPPSSPPPauseMenu() {
+  if (!started) return start();
+  if (!runtimeReady) return;
+  unlockAudio();
+  canvas.focus();
+  dispatchEscape(document, "keydown");
+  setTimeout(() => {
+    dispatchEscape(document, "keyup");
+  }, 35);
+  log("Sent Escape to PPSSPP pause menu.", "info");
+}
 
 /* ── Toast ──────────────────────────────────────────────────────── */
 const toastEl = document.getElementById("toast");
@@ -603,6 +644,7 @@ async function playOrMountStoredGame(name) {
   if (!started || !window.FS) {
     selectedStoredGame = name;
     selectedGame = null;
+    fileLabel.title = name;
     updateIdleOverlay();
     const textNode = fileLabel.firstChild;
     if (textNode && textNode.nodeType === 3) textNode.textContent = "\uD83D\uDCC2 " + name + " ";
@@ -2563,7 +2605,7 @@ async function start() {
   started = true;
   document.body.classList.add("emulator-started");
   log("Launch button clicked.", "info");
-  startBtn.disabled = true;
+  setStartButtonMode("loading");
   fileLabel.classList.add("disabled"); fileInput.disabled = true;
   gpuSelectEl.disabled = true;
   canvas.focus();
@@ -2642,8 +2684,10 @@ async function start() {
     }],
     onRuntimeInitialized() {
       log("Runtime initialized.", "ok");
+      runtimeReady = true;
       setStatus(gameArg ? "Game running" : "Library ready", "ok");
       hideLoading();
+      setStartButtonMode("pause");
       // Show runtime ISO loader button
       document.getElementById("runtimeIsoLabel").style.display = "";
       // Start auto-persist loop (every 30s)
@@ -2662,6 +2706,7 @@ async function start() {
     onAbort(reason) {
       log("Runtime abort: " + reason, "err");
       setStatus("Abort: " + reason, "err");
+      runtimeReady = false;
       hideLoading();
     }
   };
@@ -2678,6 +2723,7 @@ async function start() {
 fileInput.addEventListener("change", () => {
   selectedGame = fileInput.files[0] || null;
   selectedStoredGame = null;
+  fileLabel.title = selectedGame ? selectedGame.name : "Launch ROM";
   // Update the visible text node inside the label
   const textNode = fileLabel.firstChild;
   if (textNode && textNode.nodeType === 3)
@@ -2686,7 +2732,10 @@ fileInput.addEventListener("change", () => {
   setStatus(selectedGame ? "Selected: " + selectedGame.name : "Ready. Open a ROM or use Library.");
 });
 
-startBtn.addEventListener("click", start);
+startBtn.addEventListener("click", () => {
+  if (started) openPPSSPPPauseMenu();
+  else start();
+});
 idleStartBtn.addEventListener("click", start);
 
 document.getElementById("refreshLibraryBtn").addEventListener("click", refreshLibrary);
