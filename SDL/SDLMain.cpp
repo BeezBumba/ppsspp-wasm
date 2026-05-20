@@ -154,6 +154,7 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 	NativeMix(mixBuffer.data(), numSamples, g_sampleRate, userdata);
 
 	float *output = (float *)stream;
+#ifdef PPSSPP_WASM_TRACE
 	int peak = 0;
 	static int callbackCount = 0;
 	static int nonSilentCallbackCount = 0;
@@ -169,6 +170,11 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 		fprintf(stderr, "WASM audio callback count=%d nonsilent=%d frames=%d peak=%d rate=%d\n",
 			callbackCount, nonSilentCallbackCount, numSamples, peak, g_sampleRate);
 	}
+#else
+	for (int i = 0; i < numSamples * 2; i++) {
+		output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+	}
+#endif
 #else
 	NativeMix((short *)stream, len / (2 * 2), g_sampleRate, userdata);
 #endif
@@ -1509,6 +1515,30 @@ struct EmscriptenMainLoopState {
 	int forceGLVersion;
 };
 
+static bool EmscriptenShouldRunNativeFrame() {
+	constexpr double targetFrameMs = 1000.0 / 60.0;
+	static double nextFrameMs = 0.0;
+
+	const double nowMs = emscripten_get_now();
+	if (nextFrameMs == 0.0) {
+		nextFrameMs = nowMs + targetFrameMs;
+		return true;
+	}
+
+	if (nowMs + 1.0 < nextFrameMs) {
+		return false;
+	}
+
+	if (nowMs - nextFrameMs > targetFrameMs * 2.0) {
+		nextFrameMs = nowMs + targetFrameMs;
+	} else {
+		do {
+			nextFrameMs += targetFrameMs;
+		} while (nextFrameMs <= nowMs);
+	}
+	return true;
+}
+
 static void EmscriptenMainLoop(void *arg) {
 	auto *state = (EmscriptenMainLoopState *)arg;
 	SDL_Window *window = state->window;
@@ -1525,7 +1555,7 @@ static void EmscriptenMainLoop(void *arg) {
 		emscripten_cancel_main_loop();
 		return;
 	}
-	if (emuThreadState == (int)EmuThreadState::DISABLED) {
+	if (emuThreadState == (int)EmuThreadState::DISABLED && EmscriptenShouldRunNativeFrame()) {
 		NativeFrame(graphicsContext);
 	}
 	if (g_QuitRequested || g_RestartRequested) {

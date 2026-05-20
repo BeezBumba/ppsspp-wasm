@@ -2554,12 +2554,20 @@ class PPSSPPSpShim extends AudioWorkletProcessor {
     this._r        = 0;
     this._w        = 0;
     this._consumed = 0;
+    this._dropped  = 0;
     this._tick     = 0;
     this.port.onmessage = (e) => {
       if (!e.data || e.data.type !== 'push') return;
       const src    = e.data.buf;
       const frames = (src.length / this._nCh) | 0;
       let w = this._w;
+      const used = (w - this._r + this._cap) % this._cap;
+      const free = this._cap - 1 - used;
+      if (frames > free) {
+        const drop = Math.min(frames - free, this._cap - 1);
+        this._r = (this._r + drop) % this._cap;
+        this._dropped += drop;
+      }
       for (let i = 0; i < frames; i++) {
         for (let c = 0; c < this._nCh; c++)
           this._buf[w * this._nCh + c] = src[i * this._nCh + c];
@@ -2584,9 +2592,9 @@ class PPSSPPSpShim extends AudioWorkletProcessor {
       for (let c = 0; c < ch.length; c++) ch[c][i] = 0;
     this._r = r;
     this._consumed += read;
-    // Report consumed count periodically so main thread can track ring fill
-    if ((++this._tick & 63) === 0)
-      this.port.postMessage({ type: 'consumed', v: this._consumed });
+    // Report consumed count periodically so main thread can track ring fill.
+    if ((++this._tick & 15) === 0)
+      this.port.postMessage({ type: 'consumed', v: this._consumed, dropped: this._dropped, avail });
     return true;
   }
 }
@@ -2624,16 +2632,17 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
      *     LOOKAHEAD_S seconds.
      *   - Burst-safe: if setInterval fires 10× in a row (WASM thread
      *     resuming), the clock check prevents re-pushing.
-     *   - Crackle-safe: 150 ms lookahead ensures the worklet always has
+     *   - Crackle-safe: a short lookahead ensures the worklet always has
      *     samples even if the pump misses a cycle.
      * ────────────────────────────────────────────────────────────────*/
     function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
       const nCh          = Math.max(1, nOut || 2);
       const bufsz        = bufferSize || 2048;
       const SR           = ctx.sampleRate || 44100;
-      const RING_CAP     = 65536;          // ring capacity in frames
-      const LOOKAHEAD_S  = 0.150;          // 150 ms ahead of hardware position
+      const RING_CAP     = 32768;          // ring capacity in frames
+      const LOOKAHEAD_S  = 0.070;          // keep latency low without underruns
       const LOOKAHEAD    = SR * LOOKAHEAD_S;
+      const MAX_FILL     = SR * 0.120;
       const MAX_BURST    = 8;              // max pushes per pump call
 
       let _handler = null;
@@ -2647,6 +2656,7 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
       let _clockStart    = -1;   // ctx.currentTime at first push
       let _totalPushed   = 0;    // frames pushed to worklet ring
       let _totalConsumed = 0;    // frames consumed by worklet (from messages)
+      let _workletDropped = 0;
 
       try { _fakeBuf = ctx.createBuffer(nCh, bufsz, SR); } catch(e) {}
 
@@ -2656,9 +2666,18 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
         for (let c = 0; c < nCh; c++) _fakeBuf.getChannelData(c).fill(0);
         try { _handler({ outputBuffer: _fakeBuf }); } catch(e) { return false; }
         const buf = new Float32Array(bufsz * nCh);
-        for (let i = 0; i < bufsz; i++)
-          for (let c = 0; c < nCh; c++)
-            buf[i * nCh + c] = _fakeBuf.getChannelData(c)[i];
+        let peak = 0;
+        for (let i = 0; i < bufsz; i++) {
+          for (let c = 0; c < nCh; c++) {
+            const sample = _fakeBuf.getChannelData(c)[i];
+            buf[i * nCh + c] = sample;
+            peak = Math.max(peak, Math.abs(sample));
+          }
+        }
+        audioDebug.callbacks++;
+        audioDebug.rate = SR;
+        audioDebug.peak = Math.round(peak * 32767);
+        if (peak > 0) audioDebug.nonsilent++;
         _wn.port.postMessage({ type: 'push', buf }, [buf.buffer]);
         _totalPushed += bufsz;
         return true;
@@ -2679,13 +2698,14 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
         const hwConsumed = (ctx.currentTime - _clockStart) * SR;
 
         // Frames sitting in the ring buffer right now (approximate)
-        const ringFill   = _totalPushed - hwConsumed;
+        const ringFill   = Math.max(0, _totalPushed - hwConsumed - _workletDropped);
+        if (ringFill > MAX_FILL) return;
 
         // Push only until the ring is filled LOOKAHEAD frames ahead
         let n = 0;
         while (
           ringFill + n * bufsz < LOOKAHEAD &&       // need more samples
-          _totalPushed - _totalConsumed < RING_CAP * 0.80 && // ring not too full
+          _totalPushed - _totalConsumed - _workletDropped < MAX_FILL &&
           n < MAX_BURST
         ) {
           if (!pushOne()) break;
@@ -2724,7 +2744,10 @@ registerProcessor('ppsspp-sp-shim', PPSSPPSpShim);
             log('AUDIO: SP shim processor error: ' + (e?.message || e), 'err');
           // Track worklet consumption to gauge ring fill accurately
           _wn.port.onmessage = (e) => {
-            if (e.data?.type === 'consumed') _totalConsumed = e.data.v;
+            if (e.data?.type === 'consumed') {
+              _totalConsumed = e.data.v;
+              _workletDropped = e.data.dropped || 0;
+            }
           };
           tryFinalize();
         } catch(e) {
