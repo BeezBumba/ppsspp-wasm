@@ -28,6 +28,8 @@ const GOOGLE_DRIVE_SCOPE = [
 ].join(" ");
 const GOOGLE_GIS_SRC = "https://accounts.google.com/gsi/client";
 const GOOGLE_AUTH_TIMEOUT_MS = 90000;
+const GOOGLE_AUTO_SYNC_KEY      = "ppsspp_drive_autosync";      // "1" / "0"
+const GOOGLE_AUTO_SYNC_RATE_KEY = "ppsspp_drive_autosync_rate"; // seconds
 
 let stableViewportWidth = 0;
 let stableViewportHeight = 0;
@@ -178,6 +180,8 @@ const driveFolderEl   = document.getElementById("iDriveFolder");
 const driveRemoteEl   = document.getElementById("iDriveRemote");
 const driveActivityEl = document.getElementById("driveActivity");
 const driveRemoteList = document.getElementById("driveRemoteList");
+const driveBadgeEl    = document.getElementById("driveBadge");
+const driveBadgeText  = document.getElementById("driveBadgeText");
 
 // Panel toggle (hidden by default; restore from localStorage)
 const PANEL_KEY = "ppsspp_panel_open";
@@ -1608,6 +1612,83 @@ function startAutoPersist() {
   }, PERSIST_SYNC_MS);
 }
 
+/* ── Drive auto-sync ─────────────────────────────────────────────── */
+let _driveAutoSyncTimer = null;
+let _driveAutoSyncLastAt = 0;
+
+function driveAutoSyncEnabled() {
+  return localStorage.getItem(GOOGLE_AUTO_SYNC_KEY) === "1";
+}
+
+function driveAutoSyncRate() {
+  return Math.max(60, Number(localStorage.getItem(GOOGLE_AUTO_SYNC_RATE_KEY) || 300));
+}
+
+function updateDriveAutoSyncUI() {
+  const toggle   = document.getElementById("driveAutoSyncToggle");
+  const interval = document.getElementById("driveAutoSyncInterval");
+  const status   = document.getElementById("driveAutoSyncStatus");
+  if (!toggle || !interval) return;
+  const enabled = driveAutoSyncEnabled();
+  const connected = !!googleAccessToken;
+  toggle.checked = enabled;
+  toggle.disabled = !connected;
+  interval.disabled = !enabled || !connected;
+  interval.value = String(driveAutoSyncRate());
+  if (!connected) {
+    if (status) status.textContent = "Connect Drive to use auto-sync";
+    interval.disabled = true;
+  } else if (!enabled) {
+    if (status) status.textContent = "";
+  } else {
+    const rateMin = Math.round(driveAutoSyncRate() / 60);
+    const lastAgo = _driveAutoSyncLastAt
+      ? Math.round((Date.now() - _driveAutoSyncLastAt) / 1000) + "s ago"
+      : "never";
+    if (status) status.textContent = "Last: " + lastAgo;
+  }
+}
+
+async function runDriveAutoSync() {
+  if (!googleAccessToken || !driveAutoSyncEnabled() || !started) return;
+  if (activeDriveAction) return; // don't overlap a manual action
+  try {
+    if (driveBadgeEl) driveBadgeEl.classList.add("syncing");
+    if (driveBadgeText) driveBadgeText.textContent = "Syncing…";
+    setDriveActivity("Auto-sync: uploading saves…", "run");
+    if (window.FS) await persistFiles(window.FS, "drive-auto");
+    await ensureDriveFolders(true);
+    const bundle = await buildSavesBundle();
+    if (bundle) {
+      const bytes = new TextEncoder().encode(JSON.stringify(bundle));
+      await uploadBlobToDrive(GOOGLE_DRIVE_SAVE_BUNDLE, googleDriveSavesId, bytes, "application/json", "Auto-sync saves");
+      log("Drive auto-sync: uploaded saves bundle (" + bundle.files.length + " files).", "ok");
+    }
+    _driveAutoSyncLastAt = Date.now();
+    setDriveActivity("Auto-sync complete: " + new Date().toLocaleTimeString(), "ok");
+    if (driveBadgeText) driveBadgeText.textContent = "Drive ✓";
+    setTimeout(() => { if (driveBadgeText && googleAccessToken) driveBadgeText.textContent = "Drive"; }, 3000);
+  } catch(e) {
+    const message = googleAuthErrorMessage(e);
+    log("Drive auto-sync failed: " + message, "warn");
+    setDriveActivity("Auto-sync failed: " + message, "bad");
+    if (driveBadgeText) driveBadgeText.textContent = "Drive ✗";
+    setTimeout(() => { if (driveBadgeText && googleAccessToken) driveBadgeText.textContent = "Drive"; }, 4000);
+  } finally {
+    if (driveBadgeEl) driveBadgeEl.classList.remove("syncing");
+    updateDriveAutoSyncUI();
+  }
+}
+
+function restartDriveAutoSyncTimer() {
+  if (_driveAutoSyncTimer) { clearInterval(_driveAutoSyncTimer); _driveAutoSyncTimer = null; }
+  if (!driveAutoSyncEnabled() || !googleAccessToken) { updateDriveAutoSyncUI(); return; }
+  const ms = driveAutoSyncRate() * 1000;
+  _driveAutoSyncTimer = setInterval(runDriveAutoSync, ms);
+  log("Drive auto-sync enabled: every " + Math.round(ms / 60000) + " min.", "ok");
+  updateDriveAutoSyncUI();
+}
+
 /* ── Export / Import saves ──────────────────────────────────────── */
 async function buildSavesBundle() {
   const FS = window.FS;
@@ -1808,6 +1889,18 @@ function resumePendingDriveAction(action) {
 
 function setDriveInfo(auth, cls) {
   document.body.classList.toggle("drive-connected", !!googleAccessToken);
+  // Header badge
+  if (driveBadgeEl) {
+    if (googleAccessToken) {
+      driveBadgeEl.style.display = "";
+      driveBadgeEl.className = "badge drive-badge active";
+      driveBadgeEl.title = "Google Drive connected — click to go to Drive tab";
+      if (driveBadgeText) driveBadgeText.textContent = "Drive";
+    } else {
+      driveBadgeEl.style.display = "none";
+      driveBadgeEl.className = "badge drive-badge";
+    }
+  }
   if (driveAuthEl) {
     driveAuthEl.textContent = auth || (googleAccessToken ? "Connected" : "Not connected");
     driveAuthEl.className = "info-val" + (cls ? " " + cls : (googleAccessToken ? " good" : ""));
@@ -1923,6 +2016,7 @@ function disconnectGoogleDrive() {
   if (token && window.google?.accounts?.oauth2?.revoke) {
     try { window.google.accounts.oauth2.revoke(token, () => {}); } catch(e) {}
   }
+  restartDriveAutoSyncTimer(); // will stop timer since not connected
   renderDriveRemoteList();
   setDriveInfo("Not connected");
   setDriveActivity("Disconnected");
@@ -2058,6 +2152,7 @@ async function refreshDriveList() {
   renderDriveRemoteList();
   setDriveInfo("Connected", "good");
   setDriveActivity("Drive ready: " + googleDriveRemoteCache.saves.length + " save bundle(s), " + googleDriveRemoteCache.games.length + " ISO(s)", "ok");
+  updateDriveAutoSyncUI();
 }
 
 function renderDriveRemoteList() {
@@ -2106,6 +2201,7 @@ async function connectGoogleDrive() {
     setDriveActivity("Opening Google login…", "run");
     await ensureGoogleToken(true);
     showToast("Google Drive connected");
+    restartDriveAutoSyncTimer();
     await refreshDriveList();
   } catch(e) {
     const message = googleAuthErrorMessage(e);
@@ -3654,11 +3750,13 @@ document.getElementById("importSavesFile").addEventListener("change", e => {
 
 // ── Google Drive buttons ─────────────────────────────────────────
 initDriveConfigUI();
+restartDriveAutoSyncTimer(); // restore auto-sync timer if was enabled
 if (handleGoogleRedirectCallback()) activatePanelTab("drive");
 window.addEventListener("storage", e => {
   if (e.key !== GOOGLE_TOKEN_KEY) return;
   if (restoreGoogleToken()) {
     setDriveActivity("Google connected. Reading Drive…", "run");
+    restartDriveAutoSyncTimer();
     refreshDriveList().catch(err => {
       const message = googleAuthErrorMessage(err);
       log("Google Drive refresh failed after cross-tab login: " + message, "err");
@@ -3701,6 +3799,22 @@ document.getElementById("driveUploadSavesBtn").addEventListener("click", () => r
 document.getElementById("driveRestoreSavesBtn").addEventListener("click", () => runDriveAction("restore-saves", () => restoreDriveSave()));
 document.getElementById("driveUploadGamesBtn").addEventListener("click", () => runDriveAction("upload-games", uploadGamesToDrive));
 document.getElementById("driveDownloadGamesBtn").addEventListener("click", () => runDriveAction("download-games", downloadAllDriveGames));
+
+// Drive auto-sync controls
+document.getElementById("driveAutoSyncToggle").addEventListener("change", e => {
+  localStorage.setItem(GOOGLE_AUTO_SYNC_KEY, e.target.checked ? "1" : "0");
+  restartDriveAutoSyncTimer();
+  showToast(e.target.checked ? "✓ Drive auto-sync enabled" : "Drive auto-sync disabled");
+});
+document.getElementById("driveAutoSyncInterval").addEventListener("change", e => {
+  localStorage.setItem(GOOGLE_AUTO_SYNC_RATE_KEY, e.target.value);
+  restartDriveAutoSyncTimer();
+});
+
+// Drive badge → navigate to Drive tab
+driveBadgeEl?.addEventListener("click", () => activatePanelTab("drive"));
+driveBadgeEl?.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") activatePanelTab("drive"); });
+
 driveRemoteList?.addEventListener("click", e => {
   const button = e.target.closest("button[data-drive-action]");
   if (!button) return;

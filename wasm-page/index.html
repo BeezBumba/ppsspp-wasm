@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
-  <link rel="stylesheet" href="app.css?v=25">
+  <link rel="stylesheet" href="app.css?v=26">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -64,6 +64,9 @@
     <div class="hbar-end">
       <span id="gamepadBadge" class="badge" title="Gamepad"><i data-lucide="gamepad-2"></i> No controller</span>
       <span id="gpuBadge"     class="badge" title="GPU"><i data-lucide="monitor"></i> Detecting&hellip;</span>
+      <span id="driveBadge"   class="badge drive-badge" title="Google Drive — click to go to Drive tab" role="button" tabindex="0" style="display:none">
+        <i data-lucide="cloud"></i> <span id="driveBadgeText">Drive</span>
+      </span>
       <button id="panelToggleBtn" class="panel-btn" title="Toggle console panel"><i data-lucide="panel-right"></i><span class="btn-lbl"> Panel</span></button>
     </div>
   </header>
@@ -190,6 +193,20 @@
             <button id="driveRestoreSavesBtn"><i data-lucide="download"></i> Restore Latest Saves</button>
             <button id="driveUploadGamesBtn"><i data-lucide="upload"></i> Upload ISO Library</button>
             <button id="driveDownloadGamesBtn"><i data-lucide="download"></i> Download Remote ISOs</button>
+          </div>
+          <div class="drive-autosync-row">
+            <label class="drive-autosync-label">
+              <input type="checkbox" id="driveAutoSyncToggle">
+              <span>Auto-sync saves to Drive</span>
+            </label>
+            <select id="driveAutoSyncInterval" title="Sync interval">
+              <option value="60">Every 1 min</option>
+              <option value="300" selected>Every 5 min</option>
+              <option value="600">Every 10 min</option>
+              <option value="1800">Every 30 min</option>
+              <option value="3600">Every hour</option>
+            </select>
+            <span id="driveAutoSyncStatus" class="drive-autosync-status"></span>
           </div>
           <div class="drive-help">
             Static GitHub Pages flow: use a Google OAuth Web client ID, add this Pages origin and redirect URI in Google Cloud, and keep client secrets out of the app.
@@ -332,7 +349,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
   <script>lucide.createIcons();</script>
 </body>
 </html>
