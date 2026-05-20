@@ -11,13 +11,14 @@ class WasmThreadingHandler(SimpleHTTPRequestHandler):
     """
     Serves the project root so that /build-wasm/ and /wasm-page/ are both reachable.
     Requests for / or /index.html are transparently rewritten to /wasm-page/index.html.
-    Static assets (icons, sw.js, etc.) live in wasm-page/ and are served from there.
+    Static assets (app.css, app.js, icons, sw.js, etc.) live in wasm-page/
+    and are served from there.
     """
     def do_GET(self):
         # Rewrite bare root to the wasm-page index
         if self.path in ("/", "/index.html"):
             self.path = "/wasm-page/index.html"
-        elif self.path.split("?")[0] in ("/favicon.ico", "/manifest.webmanifest", "/sw.js"):
+        elif self.path.split("?")[0] in ("/app.css", "/app.js", "/favicon.ico", "/manifest.webmanifest", "/sw.js"):
             self.path = "/wasm-page" + self.path
         elif self.path.startswith("/icons/"):
             self.path = "/wasm-page" + self.path
