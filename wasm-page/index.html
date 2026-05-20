@@ -33,10 +33,10 @@
 
     <div class="hbar-group" id="launchGroup">
       <label class="btn" id="fileLabel">
-        <i data-lucide="folder-open"></i><span class="btn-lbl"> Launch ROM</span>
+        <i data-lucide="folder-open"></i><span class="btn-lbl"> Open ROM</span>
         <input id="gameFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
       </label>
-      <button id="startBtn" class="primary"><i data-lucide="play"></i><span class="btn-lbl"> Launch</span></button>
+      <button id="startBtn" class="primary"><i data-lucide="play"></i><span class="btn-lbl"> Start PPSSPP</span></button>
       <label class="btn" id="runtimeIsoLabel" style="display:none" title="Load ISO while running — then open from PPSSPP game browser">
         <i data-lucide="upload"></i><span class="btn-lbl"> Load ISO</span>
         <input id="runtimeIsoFile" type="file" accept=".iso,.cso,.pbp,.elf,.prx">
@@ -81,8 +81,8 @@
             <h1 class="idle-title">Your PSP is waiting.</h1>
             <p class="idle-subtitle" id="idleSubtitle">Open a ROM or pick a game from the library to start PPSSPP in the browser.</p>
             <div class="idle-actions">
-              <label class="btn primary" for="gameFile"><i data-lucide="folder-open"></i><span> Open ROM</span></label>
-              <button id="idleStartBtn" class="secondary" type="button"><i data-lucide="play"></i><span> Start PPSSPP</span></button>
+              <label class="btn" for="gameFile"><i data-lucide="folder-open"></i><span> Open ROM</span></label>
+              <button id="idleStartBtn" class="primary" type="button"><i data-lucide="play"></i><span> Start PPSSPP</span></button>
             </div>
           </div>
           <div class="idle-psp" aria-hidden="true">
