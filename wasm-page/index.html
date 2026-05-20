@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
-  <link rel="stylesheet" href="app.css?v=18">
+  <link rel="stylesheet" href="app.css?v=21">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -187,7 +187,7 @@
             <button id="driveDownloadGamesBtn"><i data-lucide="download"></i> Download Remote ISOs</button>
           </div>
           <div class="drive-help">
-            Static GitHub Pages flow: use a Google OAuth Web client ID, add this Pages origin in Google Cloud, and keep client secrets out of the app.
+            Static GitHub Pages flow: use a Google OAuth Web client ID, add this Pages origin and redirect URI in Google Cloud, and keep client secrets out of the app.
           </div>
           <div id="driveActivity" class="drive-activity">Idle</div>
           <div id="driveRemoteList"><span class="drive-empty">Connect Google Drive to list remote saves and ISOs.</span></div>
@@ -327,7 +327,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=21"></script>
   <script>lucide.createIcons();</script>
 </body>
 </html>

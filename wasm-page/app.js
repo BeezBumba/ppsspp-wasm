@@ -18,12 +18,16 @@ const MOBILE_EMULATOR_ARGS = ["--dpi", "1", "--xres", "1280", "--yres", "720"];
 
 // Google Drive is client-side only: OAuth Web client IDs are public by design.
 const GOOGLE_CLIENT_ID_KEY = "ppsspp_google_client_id";
+const GOOGLE_TOKEN_KEY = "ppsspp_google_token";
+const GOOGLE_OAUTH_STATE_KEY = "ppsspp_google_oauth_state";
+const GOOGLE_PENDING_ACTION_KEY = "ppsspp_google_pending_action";
 const GOOGLE_DRIVE_APP_ROOT = "PPSSPP Web";
 const GOOGLE_DRIVE_SAVE_BUNDLE = "ppsspp-saves.ppsspp";
 const GOOGLE_DRIVE_SCOPE = [
   "https://www.googleapis.com/auth/drive.file",
 ].join(" ");
 const GOOGLE_GIS_SRC = "https://accounts.google.com/gsi/client";
+const GOOGLE_AUTH_TIMEOUT_MS = 90000;
 
 let stableViewportWidth = 0;
 let stableViewportHeight = 0;
@@ -1566,9 +1570,138 @@ let googleDriveRootId = "";
 let googleDriveSavesId = "";
 let googleDriveGamesId = "";
 let googleDriveRemoteCache = { saves: [], games: [] };
+let activeDriveAction = "";
 
 function googleClientId() {
   return (window.PPSSPP_GOOGLE_CLIENT_ID || localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || "").trim();
+}
+
+function googleRedirectUri() {
+  return location.origin + location.pathname;
+}
+
+function shouldUseRedirectOAuth() {
+  return true;
+}
+
+function googleAuthErrorMessage(error) {
+  const msg = String(error?.message || error || "Google login failed");
+  if (/timed out/i.test(msg)) return "Google login timed out. Try again, or check that popups and redirects are allowed.";
+  if (/popup|closed|cancel/i.test(msg)) return "Google login was closed before it completed.";
+  if (/redirect_uri_mismatch/i.test(msg)) return "Google rejected the redirect URI. Add this URL in Google Cloud: " + googleRedirectUri();
+  if (/idpiframe|third.?party|cookie/i.test(msg)) return "Google login was blocked by browser privacy settings. Try redirect login or allow third-party cookies for Google.";
+  return msg;
+}
+
+function setGoogleToken(token, expiresIn) {
+  googleAccessToken = token || "";
+  googleTokenExpiresAt = googleAccessToken ? Date.now() + Number(expiresIn || 3600) * 1000 : 0;
+  if (googleAccessToken) {
+    localStorage.setItem(GOOGLE_TOKEN_KEY, JSON.stringify({
+      accessToken: googleAccessToken,
+      expiresAt: googleTokenExpiresAt,
+    }));
+  } else {
+    localStorage.removeItem(GOOGLE_TOKEN_KEY);
+  }
+}
+
+function restoreGoogleToken() {
+  if (googleAccessToken && Date.now() < googleTokenExpiresAt - 60000) return true;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(GOOGLE_TOKEN_KEY) || "null"); } catch(e) {}
+  if (!saved?.accessToken || !saved?.expiresAt || Date.now() >= Number(saved.expiresAt) - 60000) {
+    localStorage.removeItem(GOOGLE_TOKEN_KEY);
+    return false;
+  }
+  googleAccessToken = saved.accessToken;
+  googleTokenExpiresAt = Number(saved.expiresAt);
+  setDriveInfo("Connected", "good");
+  return true;
+}
+
+function handleGoogleRedirectCallback() {
+  if (!location.hash.includes("access_token=") && !location.hash.includes("error=")) return false;
+  const params = new URLSearchParams(location.hash.slice(1));
+  const token = params.get("access_token");
+  const error = params.get("error");
+  const state = params.get("state") || "";
+  const expectedState = localStorage.getItem(GOOGLE_OAUTH_STATE_KEY) || "";
+  localStorage.removeItem(GOOGLE_OAUTH_STATE_KEY);
+  history.replaceState(null, document.title, location.pathname + location.search);
+
+  if (error) {
+    takePendingDriveAction();
+    setDriveActivity("Connect failed: " + googleAuthErrorMessage(error), "bad");
+    return true;
+  }
+  if (!token) return true;
+  if (expectedState && state !== expectedState) {
+    takePendingDriveAction();
+    setDriveActivity("Connect failed: OAuth state mismatch", "bad");
+    return true;
+  }
+
+  setGoogleToken(token, params.get("expires_in") || 3600);
+  setDriveInfo("Connected", "good");
+  const pendingAction = takePendingDriveAction();
+  setDriveActivity(pendingAction ? "Google connected. Resuming Drive action…" : "Google connected. Reading Drive…", "run");
+  showToast("Google Drive connected");
+  if (pendingAction) {
+    resumePendingDriveAction(pendingAction);
+  } else {
+    setTimeout(() => refreshDriveList().catch(e => {
+      const message = googleAuthErrorMessage(e);
+      log("Google Drive refresh failed after login: " + message, "err");
+      setDriveActivity("Refresh failed: " + message, "bad");
+    }), 0);
+  }
+  return true;
+}
+
+function startGoogleRedirectLogin(clientId) {
+  const state = window.crypto?.randomUUID?.() || String(Date.now()) + Math.random().toString(16).slice(2);
+  localStorage.setItem(GOOGLE_OAUTH_STATE_KEY, state);
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: googleRedirectUri(),
+    response_type: "token",
+    scope: GOOGLE_DRIVE_SCOPE,
+    include_granted_scopes: "true",
+    prompt: "consent",
+    state,
+  });
+  location.assign("https://accounts.google.com/o/oauth2/v2/auth?" + params);
+}
+
+async function runDriveAction(name, action) {
+  activeDriveAction = name || "";
+  try {
+    return await action();
+  } finally {
+    activeDriveAction = "";
+  }
+}
+
+function rememberPendingDriveAction() {
+  if (activeDriveAction) localStorage.setItem(GOOGLE_PENDING_ACTION_KEY, activeDriveAction);
+}
+
+function takePendingDriveAction() {
+  const action = localStorage.getItem(GOOGLE_PENDING_ACTION_KEY) || "";
+  localStorage.removeItem(GOOGLE_PENDING_ACTION_KEY);
+  return action;
+}
+
+function resumePendingDriveAction(action) {
+  if (!action) return;
+  setTimeout(() => {
+    if (action === "refresh") refreshDriveList().catch(e => setDriveActivity("Refresh failed: " + googleAuthErrorMessage(e), "bad"));
+    else if (action === "upload-saves") uploadSavesToDrive();
+    else if (action === "restore-saves") restoreDriveSave();
+    else if (action === "upload-games") uploadGamesToDrive();
+    else if (action === "download-games") downloadAllDriveGames();
+  }, 150);
 }
 
 function setDriveInfo(auth, cls) {
@@ -1595,6 +1728,7 @@ function setDriveActivity(text, cls) {
 
 function initDriveConfigUI() {
   if (googleClientIdInput) googleClientIdInput.value = googleClientId();
+  restoreGoogleToken();
   setDriveInfo();
 }
 
@@ -1621,34 +1755,64 @@ function loadGoogleIdentityScript() {
 async function ensureGoogleToken(interactive) {
   const clientId = googleClientId();
   if (!clientId) throw new Error("Set a Google OAuth Web client ID first");
-  if (googleAccessToken && Date.now() < googleTokenExpiresAt - 60000) return googleAccessToken;
+  if (restoreGoogleToken()) return googleAccessToken;
   if (!interactive) throw new Error("Connect Google Drive first");
+
+  if (shouldUseRedirectOAuth()) {
+    rememberPendingDriveAction();
+    setDriveActivity("Continue Google login in this tab…", "run");
+    startGoogleRedirectLogin(clientId);
+    return new Promise(() => {});
+  }
 
   await loadGoogleIdentityScript();
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const timer = setTimeout(() => {
+      finish(reject, new Error("Google login timed out. Browser popup may have been blocked."));
+    }, GOOGLE_AUTH_TIMEOUT_MS);
     googleTokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: GOOGLE_DRIVE_SCOPE,
       callback: (response) => {
         if (response.error) {
-          reject(new Error(response.error_description || response.error));
+          finish(reject, new Error(response.error_description || response.error));
           return;
         }
-        googleAccessToken = response.access_token;
-        googleTokenExpiresAt = Date.now() + Number(response.expires_in || 3600) * 1000;
+        setGoogleToken(response.access_token, response.expires_in);
         setDriveInfo("Connected", "good");
-        resolve(googleAccessToken);
+        finish(resolve, googleAccessToken);
+      },
+      error_callback: (error) => {
+        const type = String(error?.type || error?.message || "");
+        if (/popup_failed_to_open|popup_blocked/i.test(type)) {
+          setDriveActivity("Popup blocked; switching to redirect login…", "run");
+          startGoogleRedirectLogin(clientId);
+          return;
+        }
+        finish(reject, new Error(error?.message || error?.type || "Google popup failed"));
       },
     });
     try { googleTokenClient.requestAccessToken({ prompt: "consent" }); }
-    catch(e) { reject(e); }
+    catch(e) { finish(reject, e); }
   });
+}
+
+async function ensureDriveReady(interactive) {
+  await ensureDriveFolders(interactive);
+  return true;
 }
 
 function disconnectGoogleDrive() {
   const token = googleAccessToken;
-  googleAccessToken = "";
-  googleTokenExpiresAt = 0;
+  setGoogleToken("", 0);
+  takePendingDriveAction();
   googleDriveRootId = "";
   googleDriveSavesId = "";
   googleDriveGamesId = "";
@@ -1668,7 +1832,7 @@ async function driveFetch(url, options = {}) {
   headers.set("Authorization", "Bearer " + token);
   const response = await fetch(url, { ...options, headers });
   if (response.status === 401) {
-    googleAccessToken = "";
+    setGoogleToken("", 0);
     throw new Error("Google session expired. Connect again.");
   }
   if (!response.ok) {
@@ -1725,8 +1889,8 @@ async function driveEnsureFolder(name, parentId) {
   return (await res.json()).id;
 }
 
-async function ensureDriveFolders() {
-  await ensureGoogleToken(false);
+async function ensureDriveFolders(interactive = false) {
+  await ensureGoogleToken(interactive);
   if (!googleDriveRootId) googleDriveRootId = await driveEnsureFolder(GOOGLE_DRIVE_APP_ROOT);
   if (!googleDriveSavesId) googleDriveSavesId = await driveEnsureFolder("saves", googleDriveRootId);
   if (!googleDriveGamesId) googleDriveGamesId = await driveEnsureFolder("games", googleDriveRootId);
@@ -1782,7 +1946,7 @@ async function uploadBlobToDrive(name, parentId, data, mimeType, progressLabel) 
 
 async function refreshDriveList() {
   setDriveActivity("Reading Drive folders…", "run");
-  await ensureDriveFolders();
+  await ensureDriveReady(true);
   const fields = "id,name,mimeType,size,modifiedTime";
   googleDriveRemoteCache.saves = await driveList("'" + driveQuote(googleDriveSavesId) + "' in parents and trashed = false", fields);
   googleDriveRemoteCache.games = await driveList("'" + driveQuote(googleDriveGamesId) + "' in parents and trashed = false", fields);
@@ -1841,10 +2005,11 @@ async function connectGoogleDrive() {
     showToast("Google Drive connected");
     await refreshDriveList();
   } catch(e) {
-    log("Google Drive connect failed: " + e.message, "err");
+    const message = googleAuthErrorMessage(e);
+    log("Google Drive connect failed: " + message, "err");
     setDriveInfo("Connect failed", "bad");
-    setDriveActivity("Connect failed: " + e.message, "bad");
-    showToast("❌ " + e.message, 5000);
+    setDriveActivity("Connect failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
   } finally {
     hideLoading();
   }
@@ -1854,7 +2019,7 @@ async function uploadSavesToDrive() {
   try {
     setDriveActivity("Preparing save bundle…", "run");
     if (window.FS) await persistFiles(window.FS, "drive");
-    await ensureDriveFolders();
+    await ensureDriveFolders(true);
     const bundle = await buildSavesBundle();
     if (!bundle) {
       setDriveActivity("No save data found to upload", "warn");
@@ -1870,9 +2035,10 @@ async function uploadSavesToDrive() {
     showToast("✓ Saves uploaded to Drive");
     await refreshDriveList();
   } catch(e) {
-    log("Google Drive save upload failed: " + e.message, "err");
-    setDriveActivity("Save upload failed: " + e.message, "bad");
-    showToast("❌ " + e.message, 5000);
+    const message = googleAuthErrorMessage(e);
+    log("Google Drive save upload failed: " + message, "err");
+    setDriveActivity("Save upload failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
   } finally {
     hideLoading();
   }
@@ -1881,7 +2047,8 @@ async function uploadSavesToDrive() {
 async function restoreDriveSave(file) {
   try {
     setDriveActivity("Preparing save restore…", "run");
-    await ensureDriveFolders();
+    await ensureDriveFolders(true);
+    if (!file && !googleDriveRemoteCache.saves.length) await refreshDriveList();
     const target = file || googleDriveRemoteCache.saves[0];
     if (!target) {
       setDriveActivity("No Drive save bundle found", "warn");
@@ -1896,9 +2063,10 @@ async function restoreDriveSave(file) {
     log("Google Drive: restored saves from " + target.name + ".", "ok");
     setDriveActivity("Restored saves from " + target.name, "ok");
   } catch(e) {
-    log("Google Drive save restore failed: " + e.message, "err");
-    setDriveActivity("Save restore failed: " + e.message, "bad");
-    showToast("❌ " + e.message, 5000);
+    const message = googleAuthErrorMessage(e);
+    log("Google Drive save restore failed: " + message, "err");
+    setDriveActivity("Save restore failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
   } finally {
     hideLoading();
   }
@@ -1907,7 +2075,7 @@ async function restoreDriveSave(file) {
 async function uploadGamesToDrive() {
   try {
     setDriveActivity("Scanning local ISO library…", "run");
-    await ensureDriveFolders();
+    await ensureDriveFolders(true);
     const games = await opfsWalk(OPFS_GAMES_DIR, "", false);
     if (!games.length) {
       setDriveActivity("No local ISOs in OPFS to upload", "warn");
@@ -1927,9 +2095,10 @@ async function uploadGamesToDrive() {
     showToast("✓ Uploaded " + done + " ISO" + (done === 1 ? "" : "s") + " to Drive");
     await refreshDriveList();
   } catch(e) {
-    log("Google Drive ISO upload failed: " + e.message, "err");
-    setDriveActivity("ISO upload failed: " + e.message, "bad");
-    showToast("❌ " + e.message, 5000);
+    const message = googleAuthErrorMessage(e);
+    log("Google Drive ISO upload failed: " + message, "err");
+    setDriveActivity("ISO upload failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
   } finally {
     hideLoading();
   }
@@ -1938,7 +2107,7 @@ async function uploadGamesToDrive() {
 async function downloadDriveGame(file) {
   try {
     setDriveActivity("Preparing ISO download…", "run");
-    await ensureDriveFolders();
+    await ensureDriveFolders(true);
     showLoading("Downloading " + file.name + " from Drive…");
     setDriveActivity("Downloading " + file.name + "…", "run");
     const bytes = await driveDownloadBytes(file, file.name);
@@ -1949,9 +2118,10 @@ async function downloadDriveGame(file) {
     await refreshLibrary();
     updateStorageInfo();
   } catch(e) {
-    log("Google Drive ISO download failed: " + e.message, "err");
-    setDriveActivity("ISO download failed: " + e.message, "bad");
-    showToast("❌ " + e.message, 5000);
+    const message = googleAuthErrorMessage(e);
+    log("Google Drive ISO download failed: " + message, "err");
+    setDriveActivity("ISO download failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
   } finally {
     hideLoading();
   }
@@ -1960,7 +2130,7 @@ async function downloadDriveGame(file) {
 async function downloadAllDriveGames() {
   try {
     setDriveActivity("Preparing remote ISO downloads…", "run");
-    await ensureDriveFolders();
+    await ensureDriveFolders(true);
     if (!googleDriveRemoteCache.games.length) await refreshDriveList();
     const games = googleDriveRemoteCache.games;
     if (!games.length) {
@@ -1972,9 +2142,10 @@ async function downloadAllDriveGames() {
     setDriveActivity("Downloaded " + games.length + " remote ISO" + (games.length === 1 ? "" : "s"), "ok");
     showToast("✓ Downloaded " + games.length + " remote ISO" + (games.length === 1 ? "" : "s"));
   } catch(e) {
-    log("Google Drive bulk ISO download failed: " + e.message, "err");
-    setDriveActivity("Bulk ISO download failed: " + e.message, "bad");
-    showToast("❌ " + e.message, 5000);
+    const message = googleAuthErrorMessage(e);
+    log("Google Drive bulk ISO download failed: " + message, "err");
+    setDriveActivity("Bulk ISO download failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
   } finally {
     hideLoading();
   }
@@ -3368,12 +3539,26 @@ document.getElementById("importSavesFile").addEventListener("change", e => {
 
 // ── Google Drive buttons ─────────────────────────────────────────
 initDriveConfigUI();
+if (handleGoogleRedirectCallback()) activatePanelTab("drive");
+window.addEventListener("storage", e => {
+  if (e.key !== GOOGLE_TOKEN_KEY) return;
+  if (restoreGoogleToken()) {
+    setDriveActivity("Google connected. Reading Drive…", "run");
+    refreshDriveList().catch(err => {
+      const message = googleAuthErrorMessage(err);
+      log("Google Drive refresh failed after cross-tab login: " + message, "err");
+      setDriveActivity("Refresh failed: " + message, "bad");
+    });
+  } else {
+    disconnectGoogleDrive();
+  }
+});
 document.getElementById("saveGoogleClientIdBtn").addEventListener("click", () => {
   const value = (googleClientIdInput?.value || "").trim();
   if (value) localStorage.setItem(GOOGLE_CLIENT_ID_KEY, value);
   else localStorage.removeItem(GOOGLE_CLIENT_ID_KEY);
-  googleAccessToken = "";
-  googleTokenExpiresAt = 0;
+  setGoogleToken("", 0);
+  takePendingDriveAction();
   googleTokenClient = null;
   setDriveInfo(value ? "Client ID saved" : "Client ID cleared", value ? "good" : "");
   showToast(value ? "Google client ID saved" : "Google client ID cleared");
@@ -3389,17 +3574,18 @@ document.getElementById("toggleGoogleClientIdBtn").addEventListener("click", () 
 document.getElementById("driveConnectBtn").addEventListener("click", connectGoogleDrive);
 document.getElementById("driveDisconnectBtn").addEventListener("click", disconnectGoogleDrive);
 document.getElementById("driveRefreshBtn").addEventListener("click", async () => {
-  try { await refreshDriveList(); showToast("✓ Drive refreshed"); }
+  try { await runDriveAction("refresh", refreshDriveList); showToast("✓ Drive refreshed"); }
   catch(e) {
-    log("Google Drive refresh failed: " + e.message, "err");
-    setDriveActivity("Refresh failed: " + e.message, "bad");
-    showToast("❌ " + e.message, 5000);
+    const message = googleAuthErrorMessage(e);
+    log("Google Drive refresh failed: " + message, "err");
+    setDriveActivity("Refresh failed: " + message, "bad");
+    showToast("❌ " + message, 5000);
   }
 });
-document.getElementById("driveUploadSavesBtn").addEventListener("click", uploadSavesToDrive);
-document.getElementById("driveRestoreSavesBtn").addEventListener("click", () => restoreDriveSave());
-document.getElementById("driveUploadGamesBtn").addEventListener("click", uploadGamesToDrive);
-document.getElementById("driveDownloadGamesBtn").addEventListener("click", downloadAllDriveGames);
+document.getElementById("driveUploadSavesBtn").addEventListener("click", () => runDriveAction("upload-saves", uploadSavesToDrive));
+document.getElementById("driveRestoreSavesBtn").addEventListener("click", () => runDriveAction("restore-saves", () => restoreDriveSave()));
+document.getElementById("driveUploadGamesBtn").addEventListener("click", () => runDriveAction("upload-games", uploadGamesToDrive));
+document.getElementById("driveDownloadGamesBtn").addEventListener("click", () => runDriveAction("download-games", downloadAllDriveGames));
 driveRemoteList?.addEventListener("click", e => {
   const button = e.target.closest("button[data-drive-action]");
   if (!button) return;
