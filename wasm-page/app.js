@@ -3599,9 +3599,9 @@ async function start() {
   let gameArg = null;
   const chosenPowerPref = gpuSelectEl.value;
   log('GPU powerPreference: "' + chosenPowerPref + '"', "info");
-  // Install before loading Emscripten/SDL so native touch events never reach
-  // SDL_FINGER handlers, which can crash this WASM build on touch input.
-  installTouchMouseShim();
+  if (localStorage.getItem("ppsspp_touch_mouse_fallback") === "1") {
+    installTouchMouseShim();
+  }
 
   window.Module = {
     canvas,
@@ -3696,11 +3696,8 @@ async function start() {
 }
 
 /* ── Touch-to-mouse shim ───────────────────────────────────────── */
-// SDL2 for Emscripten handles SDL_FINGER* events through a code path that
-// triggers an Emscripten invoke_vi type mismatch (WASM_BIGINT + LTO issue),
-// causing a crash. We intercept browser touch events BEFORE SDL sees them
-// (using capture-phase listeners) and re-dispatch them as mouse events,
-// which go through SDL_MOUSEBUTTONDOWN/MOVE/UP — a path that works correctly.
+// Emergency fallback only. This converts touch to a single mouse pointer, so it
+// intentionally disables multitouch and should stay off for normal mobile play.
 function installTouchMouseShim() {
   if (installTouchMouseShim.installed) return;
   installTouchMouseShim.installed = true;
