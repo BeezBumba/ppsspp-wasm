@@ -2802,9 +2802,9 @@ installAudioContextTracking();
 
 /* ── ScriptProcessor → AudioWorklet polyfill (Chrome 126+ compat) ── */
 /* Chrome removed createScriptProcessor; SDL's WASM backend uses it.  */
-/* Replacement: AudioWorklet with clock-locked pump on main thread.   */
-/* The pump uses ctx.currentTime as reference so it NEVER over-pushes */
-/* regardless of setInterval burst/jitter (fixes "too fast" + crackle)*/
+/* Replacement: AudioWorklet with a hardware-clock playhead.          */
+/* It prebuffers a small lookahead, but only generates audio up to    */
+/* ctx.currentTime + lookahead so timer jitter cannot make it run hot.*/
 const SP_SHIM_WORKLET = `
 class PPSSPPSpShim extends AudioWorkletProcessor {
   constructor(opts) {
@@ -2887,21 +2887,18 @@ async function ensureSpShimModule(ctx) {
 
 /* ── makeScriptProcessorShim ──────────────────────────────────────
  * Replaces ScriptProcessorNode with an AudioWorkletNode.
- * The pump is CLOCK-LOCKED on ctx.currentTime:
- *   - Only pushes samples when hardware will need them in the next
- *     small lookahead window.
- *   - Burst-safe: if setInterval fires 10× in a row (WASM thread
- *     resuming), the clock check prevents re-pushing.
- *   - Crackle-safe: a short lookahead ensures the worklet always has
- *     samples even if the pump misses a cycle.
+ * The pump is locked to a produced-audio playhead:
+ *   - It may prebuffer a small lookahead.
+ *   - It never generates past the hardware playhead + lookahead.
+ *   - Timer bursts can top up the buffer, but cannot advance audio time.
  * ────────────────────────────────────────────────────────────────*/
 function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
   const nCh          = Math.max(1, nOut || 2);
   const bufsz        = bufferSize || 2048;
   const SR           = ctx.sampleRate || 44100;
   const RING_CAP     = 32768;          // ring capacity in frames
-  const LOOKAHEAD    = Math.max(SR * 0.150, bufsz * 3);
-  const MAX_FILL     = Math.max(SR * 0.300, bufsz * 6);
+  const LOOKAHEAD    = Math.max(SR * 0.070, bufsz * 2);
+  const MAX_FILL     = Math.max(SR * 0.180, bufsz * 5);
   const MAX_BURST    = 16;             // max pushes per pump call
 
   let _handler = null;
@@ -2915,6 +2912,8 @@ function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
   let _data    = null;
 
   // Clock-sync state (all in frames)
+  let _playheadStartTime = 0;
+  let _producedFrames = 0;
   let _workletDropped = 0;
   let _lastUnderruns = 0;
   let _adaptiveExtra = 0;
@@ -2929,7 +2928,6 @@ function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
   /* Push ONE SDL callback's worth of audio to the worklet ring */
   function pushOne() {
     if (!_handler || !_fakeBuf || !_wn || !_ctrl || !_data) return false;
-    try { _handler({ outputBuffer: _fakeBuf }); } catch(e) { return false; }
     let w = Atomics.load(_ctrl, 0);
     let r = Atomics.load(_ctrl, 1);
     const used = (w - r + RING_CAP) % RING_CAP;
@@ -2937,6 +2935,7 @@ function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
     if (bufsz > free) {
       return false;
     }
+    try { _handler({ outputBuffer: _fakeBuf }); } catch(e) { return false; }
     const measurePeak = (_pushCount++ & 15) === 0;
     let peak = 0;
     for (let i = 0; i < bufsz; i++) {
@@ -2954,12 +2953,19 @@ function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
       if (peak > 0) audioDebug.nonsilent++;
     }
     Atomics.store(_ctrl, 0, w);
+    _producedFrames += bufsz;
     return true;
   }
 
-  /* Clock-locked pump — safe to call as often as desired */
+  function resetPlayhead(now) {
+    _playheadStartTime = now || ctx.currentTime || 0;
+    _producedFrames = 0;
+  }
+
+  /* Clock-locked pump: safe to call as often as desired. */
   function pump() {
     if (ctx.state !== 'running' || !_handler || !_wn) return;
+    if (!_playheadStartTime) resetPlayhead(ctx.currentTime);
 
     _workletDropped = Atomics.load(_ctrl, 3);
     const underruns = Atomics.load(_ctrl, 4);
@@ -2979,10 +2985,19 @@ function makeScriptProcessorShim(ctx, bufferSize, nIn, nOut) {
     const maxFill = MAX_FILL + _adaptiveExtra;
     if (ringFill > maxFill) return;
 
-    // Push only until the ring is filled LOOKAHEAD frames ahead
+    let elapsedFrames = Math.max(0, Math.floor((ctx.currentTime - _playheadStartTime) * SR));
+    if (_producedFrames < elapsedFrames - maxFill) {
+      resetPlayhead(ctx.currentTime);
+      elapsedFrames = 0;
+    }
+    const targetProducedFrames = elapsedFrames + targetFill;
+    const maxProducedFrames = elapsedFrames + maxFill;
+
+    // Push only until the produced playhead reaches the lookahead window.
     let n = 0;
     while (
-      ringFill + n * bufsz < targetFill &&       // need more samples
+      _producedFrames + bufsz <= targetProducedFrames &&
+      _producedFrames + bufsz <= maxProducedFrames &&
       ringFill + n * bufsz < maxFill &&
       n < MAX_BURST
     ) {

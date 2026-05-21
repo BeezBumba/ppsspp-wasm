@@ -149,30 +149,64 @@ int getDisplayNumber(void) {
 void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 #ifdef __EMSCRIPTEN__
 	const int numSamples = len / (int)(sizeof(float) * 2);
+	constexpr int pspMixRate = 44100;
 	thread_local std::vector<short> mixBuffer;
-	mixBuffer.resize(numSamples * 2);
-	NativeMix(mixBuffer.data(), numSamples, g_sampleRate, userdata);
+
+	int mixSamples = numSamples;
+	if (g_sampleRate != pspMixRate) {
+		mixSamples = (int)(((int64_t)numSamples * pspMixRate + g_sampleRate - 1) / g_sampleRate) + 2;
+	}
+	mixBuffer.resize(mixSamples * 2);
+	NativeMix(mixBuffer.data(), mixSamples, pspMixRate, userdata);
 
 	float *output = (float *)stream;
 #ifdef PPSSPP_WASM_TRACE
 	int peak = 0;
 	static int callbackCount = 0;
 	static int nonSilentCallbackCount = 0;
-	for (int i = 0; i < numSamples * 2; i++) {
-		peak = std::max(peak, std::abs((int)mixBuffer[i]));
-		output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+	if (g_sampleRate == pspMixRate) {
+		for (int i = 0; i < numSamples * 2; i++) {
+			peak = std::max(peak, std::abs((int)mixBuffer[i]));
+			output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+		}
+	} else {
+		for (int i = 0; i < numSamples; i++) {
+			const int64_t srcFixed = (int64_t)i * pspMixRate * 65536 / g_sampleRate;
+			const int src = (int)(srcFixed >> 16);
+			const int frac = (int)(srcFixed & 0xFFFF);
+			for (int c = 0; c < 2; c++) {
+				const int a = mixBuffer[src * 2 + c];
+				const int b = mixBuffer[(src + 1) * 2 + c];
+				const int sample = a + (int)(((int64_t)(b - a) * frac) >> 16);
+				peak = std::max(peak, std::abs(sample));
+				output[i * 2 + c] = sample * (1.0f / 32768.0f);
+			}
+		}
 	}
 	callbackCount++;
 	if (peak > 0) {
 		nonSilentCallbackCount++;
 	}
 	if (callbackCount <= 5 || (callbackCount % 120) == 0) {
-		fprintf(stderr, "WASM audio callback count=%d nonsilent=%d frames=%d peak=%d rate=%d\n",
-			callbackCount, nonSilentCallbackCount, numSamples, peak, g_sampleRate);
+		fprintf(stderr, "WASM audio callback count=%d nonsilent=%d frames=%d peak=%d rate=%d mixrate=%d\n",
+			callbackCount, nonSilentCallbackCount, numSamples, peak, g_sampleRate, pspMixRate);
 	}
 #else
-	for (int i = 0; i < numSamples * 2; i++) {
-		output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+	if (g_sampleRate == pspMixRate) {
+		for (int i = 0; i < numSamples * 2; i++) {
+			output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+		}
+	} else {
+		for (int i = 0; i < numSamples; i++) {
+			const int64_t srcFixed = (int64_t)i * pspMixRate * 65536 / g_sampleRate;
+			const int src = (int)(srcFixed >> 16);
+			const int frac = (int)(srcFixed & 0xFFFF);
+			for (int c = 0; c < 2; c++) {
+				const int a = mixBuffer[src * 2 + c];
+				const int b = mixBuffer[(src + 1) * 2 + c];
+				output[i * 2 + c] = (a + (int)(((int64_t)(b - a) * frac) >> 16)) * (1.0f / 32768.0f);
+			}
+		}
 	}
 #endif
 #else
