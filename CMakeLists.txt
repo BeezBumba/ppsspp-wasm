@@ -321,7 +321,7 @@ include_directories(ext/glew)
 
 if(EMSCRIPTEN)
 	option(WASM_MAX_PERF "Enable aggressive WebAssembly release optimizations" ON)
-	option(WASM_ENABLE_LTO "Enable WebAssembly link-time optimization in release builds" ON)
+	option(WASM_ENABLE_LTO "Enable WebAssembly link-time optimization in release builds" OFF)
 	option(WASM_PRELOAD_ASSETS "Package PPSSPP assets into the Emscripten preload data file" ON)
 	set(WASM_MALLOC "mimalloc" CACHE STRING "Emscripten malloc implementation for release builds")
 	set_property(CACHE WASM_MALLOC PROPERTY STRINGS emmalloc dlmalloc mimalloc)

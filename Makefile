@@ -28,7 +28,7 @@ wasm-dev-build:
 wasm-dev: wasm-dev-config wasm-dev-build
 
 wasm-release-config:
-	emcmake $(CMAKE) -S . -B $(WASM_RELEASE_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=Release -DWASM_MAX_PERF=ON -DWASM_ENABLE_LTO=ON -DWASM_MALLOC=mimalloc
+	emcmake $(CMAKE) -S . -B $(WASM_RELEASE_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=Release -DWASM_MAX_PERF=ON -DWASM_ENABLE_LTO=OFF -DWASM_MALLOC=mimalloc
 
 wasm-release-build:
 	$(CMAKE) --build $(WASM_RELEASE_BUILD_DIR) $(WASM_JOBS)

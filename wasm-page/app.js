@@ -3520,6 +3520,9 @@ async function start() {
   let gameArg = null;
   const chosenPowerPref = gpuSelectEl.value;
   log('GPU powerPreference: "' + chosenPowerPref + '"', "info");
+  // Install before loading Emscripten/SDL so native touch events never reach
+  // SDL_FINGER handlers, which can crash this WASM build on touch input.
+  installTouchMouseShim();
 
   window.Module = {
     canvas,
@@ -3611,6 +3614,89 @@ async function start() {
   script.onload  = () => log("PPSSPPSDL.js loaded.", "ok");
   script.onerror = () => { setStatus("Failed to load PPSSPPSDL.js", "err"); hideLoading(); };
   document.body.appendChild(script);
+}
+
+/* ── Touch-to-mouse shim ───────────────────────────────────────── */
+// SDL2 for Emscripten handles SDL_FINGER* events through a code path that
+// triggers an Emscripten invoke_vi type mismatch (WASM_BIGINT + LTO issue),
+// causing a crash. We intercept browser touch events BEFORE SDL sees them
+// (using capture-phase listeners) and re-dispatch them as mouse events,
+// which go through SDL_MOUSEBUTTONDOWN/MOVE/UP — a path that works correctly.
+function installTouchMouseShim() {
+  if (installTouchMouseShim.installed) return;
+  installTouchMouseShim.installed = true;
+
+  const opts = { capture: true, passive: false };
+
+  // Track the primary (first) active touch id for single-pointer emulation.
+  let primaryId = null;
+
+  function isCanvasTouch(e) {
+    return e.target === canvas || e.composedPath?.().includes(canvas);
+  }
+
+  function toMouse(type, clientX, clientY, buttons) {
+    canvas.dispatchEvent(new MouseEvent(type, {
+      bubbles: true, cancelable: true,
+      clientX, clientY,
+      button: 0, buttons,
+      movementX: 0, movementY: 0,
+    }));
+  }
+
+  window.addEventListener('touchstart', (e) => {
+    if (!isCanvasTouch(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    for (const t of e.changedTouches) {
+      if (primaryId === null) {
+        primaryId = t.identifier;
+        // Move first so SDL knows the coordinates before the button event.
+        toMouse('mousemove', t.clientX, t.clientY, 1);
+        toMouse('mousedown', t.clientX, t.clientY, 1);
+      }
+    }
+  }, opts);
+
+  window.addEventListener('touchmove', (e) => {
+    if (!isCanvasTouch(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    for (const t of e.changedTouches) {
+      if (t.identifier === primaryId) {
+        toMouse('mousemove', t.clientX, t.clientY, 1);
+        break;
+      }
+    }
+  }, opts);
+
+  window.addEventListener('touchend', (e) => {
+    if (!isCanvasTouch(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    for (const t of e.changedTouches) {
+      if (t.identifier === primaryId) {
+        primaryId = null;
+        toMouse('mouseup', t.clientX, t.clientY, 0);
+        break;
+      }
+    }
+  }, opts);
+
+  window.addEventListener('touchcancel', (e) => {
+    if (!isCanvasTouch(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    for (const t of e.changedTouches) {
+      if (t.identifier === primaryId) {
+        primaryId = null;
+        toMouse('mouseup', t.clientX, t.clientY, 0);
+        break;
+      }
+    }
+  }, opts);
+
+  log('Touch-to-mouse shim installed before SDL touch handlers.', 'info');
 }
 
 /* ── Event wiring ───────────────────────────────────────────────── */

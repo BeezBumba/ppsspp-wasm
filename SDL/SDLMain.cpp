@@ -1205,8 +1205,11 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 			NativeKey(key);
 			break;
 		}
-// This behavior doesn't feel right on a macbook with a touchpad.
-#if !PPSSPP_PLATFORM(MAC)
+	// This behavior doesn't feel right on a macbook with a touchpad.
+	// On Emscripten, SDL_FINGER* events can trip an invoke_vi JS/WASM type
+	// mismatch in this build. The web shell translates browser touch input into
+	// mouse events instead, so the normal SDL_MOUSE* path below remains usable.
+	#if !PPSSPP_PLATFORM(MAC) && !defined(__EMSCRIPTEN__)
 	case SDL_FINGERMOTION:
 		{
 			int w, h;
@@ -1772,6 +1775,12 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	WASM_TRACE("SDL_Init done joystick=%d", joystick_enabled ? 1 : 0);
+#ifdef __EMSCRIPTEN__
+	SDL_EventState(SDL_FINGERDOWN, SDL_IGNORE);
+	SDL_EventState(SDL_FINGERUP, SDL_IGNORE);
+	SDL_EventState(SDL_FINGERMOTION, SDL_IGNORE);
+	WASM_TRACE("SDL finger events disabled; browser touch uses mouse events");
+#endif
 
 	SDL_VERSION(&compiled);
 	SDL_GetVersion(&linked);
