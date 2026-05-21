@@ -25,6 +25,7 @@ SDLJoystick *joystick = NULL;
 #include <thread>
 #include <locale>
 #include <vector>
+#include <deque>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -150,14 +151,27 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 #ifdef __EMSCRIPTEN__
 	const int numSamples = len / (int)(sizeof(float) * 2);
 	constexpr int pspMixRate = 44100;
+	constexpr float wasmOutputGain = 0.95f;
 	thread_local std::vector<short> mixBuffer;
+	thread_local std::deque<short> sourceQueue;
+	thread_local uint32_t sourcePhase = 0;
 
-	int mixSamples = numSamples;
-	if (g_sampleRate != pspMixRate) {
-		mixSamples = (int)(((int64_t)numSamples * pspMixRate + g_sampleRate - 1) / g_sampleRate) + 2;
+	if (g_sampleRate == pspMixRate) {
+		sourceQueue.clear();
+		sourcePhase = 0;
+		mixBuffer.resize(numSamples * 2);
+		NativeMix(mixBuffer.data(), numSamples, pspMixRate, userdata);
+	} else {
+		const uint32_t step = (uint32_t)(((uint64_t)pspMixRate << 16) / g_sampleRate);
+		const int neededSourceSamples = (int)(((uint64_t)sourcePhase + (uint64_t)step * (numSamples - 1)) >> 16) + 2;
+		const int queuedSourceSamples = (int)sourceQueue.size() / 2;
+		if (queuedSourceSamples < neededSourceSamples) {
+			const int refillSamples = neededSourceSamples - queuedSourceSamples + 256;
+			mixBuffer.resize(refillSamples * 2);
+			NativeMix(mixBuffer.data(), refillSamples, pspMixRate, userdata);
+			sourceQueue.insert(sourceQueue.end(), mixBuffer.begin(), mixBuffer.end());
+		}
 	}
-	mixBuffer.resize(mixSamples * 2);
-	NativeMix(mixBuffer.data(), mixSamples, pspMixRate, userdata);
 
 	float *output = (float *)stream;
 #ifdef PPSSPP_WASM_TRACE
@@ -167,20 +181,26 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 	if (g_sampleRate == pspMixRate) {
 		for (int i = 0; i < numSamples * 2; i++) {
 			peak = std::max(peak, std::abs((int)mixBuffer[i]));
-			output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+			output[i] = mixBuffer[i] * (wasmOutputGain / 32768.0f);
 		}
 	} else {
+		const uint32_t step = (uint32_t)(((uint64_t)pspMixRate << 16) / g_sampleRate);
 		for (int i = 0; i < numSamples; i++) {
-			const int64_t srcFixed = (int64_t)i * pspMixRate * 65536 / g_sampleRate;
-			const int src = (int)(srcFixed >> 16);
-			const int frac = (int)(srcFixed & 0xFFFF);
+			const int src = (int)(sourcePhase >> 16);
+			const int frac = (int)(sourcePhase & 0xFFFF);
 			for (int c = 0; c < 2; c++) {
-				const int a = mixBuffer[src * 2 + c];
-				const int b = mixBuffer[(src + 1) * 2 + c];
+				const int a = sourceQueue[src * 2 + c];
+				const int b = sourceQueue[(src + 1) * 2 + c];
 				const int sample = a + (int)(((int64_t)(b - a) * frac) >> 16);
 				peak = std::max(peak, std::abs(sample));
-				output[i * 2 + c] = sample * (1.0f / 32768.0f);
+				output[i * 2 + c] = sample * (wasmOutputGain / 32768.0f);
 			}
+			sourcePhase += step;
+		}
+		const int consumed = (int)(sourcePhase >> 16);
+		if (consumed > 0) {
+			sourceQueue.erase(sourceQueue.begin(), sourceQueue.begin() + consumed * 2);
+			sourcePhase &= 0xFFFF;
 		}
 	}
 	callbackCount++;
@@ -194,18 +214,24 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 #else
 	if (g_sampleRate == pspMixRate) {
 		for (int i = 0; i < numSamples * 2; i++) {
-			output[i] = mixBuffer[i] * (1.0f / 32768.0f);
+			output[i] = mixBuffer[i] * (wasmOutputGain / 32768.0f);
 		}
 	} else {
+		const uint32_t step = (uint32_t)(((uint64_t)pspMixRate << 16) / g_sampleRate);
 		for (int i = 0; i < numSamples; i++) {
-			const int64_t srcFixed = (int64_t)i * pspMixRate * 65536 / g_sampleRate;
-			const int src = (int)(srcFixed >> 16);
-			const int frac = (int)(srcFixed & 0xFFFF);
+			const int src = (int)(sourcePhase >> 16);
+			const int frac = (int)(sourcePhase & 0xFFFF);
 			for (int c = 0; c < 2; c++) {
-				const int a = mixBuffer[src * 2 + c];
-				const int b = mixBuffer[(src + 1) * 2 + c];
-				output[i * 2 + c] = (a + (int)(((int64_t)(b - a) * frac) >> 16)) * (1.0f / 32768.0f);
+				const int a = sourceQueue[src * 2 + c];
+				const int b = sourceQueue[(src + 1) * 2 + c];
+				output[i * 2 + c] = (a + (int)(((int64_t)(b - a) * frac) >> 16)) * (wasmOutputGain / 32768.0f);
 			}
+			sourcePhase += step;
+		}
+		const int consumed = (int)(sourcePhase >> 16);
+		if (consumed > 0) {
+			sourceQueue.erase(sourceQueue.begin(), sourceQueue.begin() + consumed * 2);
+			sourcePhase &= 0xFFFF;
 		}
 	}
 #endif
