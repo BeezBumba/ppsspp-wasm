@@ -15,6 +15,60 @@ const OPFS_GAMES_DIR      = "games";
 const OPFS_GAME_META_DIR  = "game-meta";
 const PERSIST_SYNC_MS     = 30000; // auto-sync every 30 s
 const MOBILE_EMULATOR_ARGS = ["--dpi", "1", "--xres", "1280", "--yres", "720"];
+const MOBILE_TOUCH_CONFIG = [
+  ["General", "UIScaleFactor", "3"],
+  ["Control", "ShowTouchControls", "True"],
+  ["Control", "TouchButtonStyle", "1"],
+  ["Control", "TouchButtonOpacity", "78"],
+  ["Control", "TouchButtonHideSeconds", "0"],
+  ["Control", "TouchGliding", "True"],
+  ["TouchControls.Landscape", "ShowTouchCross", "True"],
+  ["TouchControls.Landscape", "ShowTouchCircle", "True"],
+  ["TouchControls.Landscape", "ShowTouchSquare", "True"],
+  ["TouchControls.Landscape", "ShowTouchTriangle", "True"],
+  ["TouchControls.Landscape", "ShowTouchDpad", "True"],
+  ["TouchControls.Landscape", "ShowAnalogStick", "True"],
+  ["TouchControls.Landscape", "ShowTouchStart", "True"],
+  ["TouchControls.Landscape", "ShowTouchSelect", "True"],
+  ["TouchControls.Landscape", "ShowTouchLTrigger", "True"],
+  ["TouchControls.Landscape", "ShowTouchRTrigger", "True"],
+  ["TouchControls.Landscape", "ShowTouchPause", "True"],
+  ["TouchControls.Landscape", "ActionButtonScale", "1.58"],
+  ["TouchControls.Landscape", "DPadScale", "1.58"],
+  ["TouchControls.Landscape", "AnalogStickScale", "1.48"],
+  ["TouchControls.Landscape", "StartKeyScale", "1.28"],
+  ["TouchControls.Landscape", "SelectKeyScale", "1.28"],
+  ["TouchControls.Landscape", "UnthrottleKeyScale", "1.20"],
+  ["TouchControls.Landscape", "LKeyScale", "1.35"],
+  ["TouchControls.Landscape", "RKeyScale", "1.35"],
+  ["TouchControls.Landscape", "PauseKeyScale", "1.12"],
+  ["TouchControls.Landscape", "ActionButtonSpacing2", "1.08"],
+  ["TouchControls.Landscape", "DPadSpacing", "1.06"],
+  ["TouchControls.Landscape", "LeftStickHeadScale", "1.12"],
+  ["TouchControls.Portrait", "ShowTouchCross", "True"],
+  ["TouchControls.Portrait", "ShowTouchCircle", "True"],
+  ["TouchControls.Portrait", "ShowTouchSquare", "True"],
+  ["TouchControls.Portrait", "ShowTouchTriangle", "True"],
+  ["TouchControls.Portrait", "ShowTouchDpad", "True"],
+  ["TouchControls.Portrait", "ShowAnalogStick", "True"],
+  ["TouchControls.Portrait", "ShowTouchStart", "True"],
+  ["TouchControls.Portrait", "ShowTouchSelect", "True"],
+  ["TouchControls.Portrait", "ShowTouchLTrigger", "True"],
+  ["TouchControls.Portrait", "ShowTouchRTrigger", "True"],
+  ["TouchControls.Portrait", "ShowTouchPause", "True"],
+  ["TouchControls.Portrait", "ActionButtonScale", "1.42"],
+  ["TouchControls.Portrait", "DPadScale", "1.42"],
+  ["TouchControls.Portrait", "AnalogStickScale", "1.34"],
+  ["TouchControls.Portrait", "StartKeyScale", "1.18"],
+  ["TouchControls.Portrait", "SelectKeyScale", "1.18"],
+  ["TouchControls.Portrait", "UnthrottleKeyScale", "1.12"],
+  ["TouchControls.Portrait", "LKeyScale", "1.24"],
+  ["TouchControls.Portrait", "RKeyScale", "1.24"],
+  ["TouchControls.Portrait", "PauseKeyScale", "1.08"],
+  ["TouchControls.Portrait", "ActionButtonSpacing2", "1.05"],
+  ["TouchControls.Portrait", "DPadSpacing", "1.04"],
+  ["TouchControls.Portrait", "LeftStickHeadScale", "1.10"],
+];
 
 // Google Drive is client-side only: OAuth Web client IDs are public by design.
 const GOOGLE_CLIENT_ID_KEY = "ppsspp_google_client_id";
@@ -81,7 +135,11 @@ function notifyRuntimeResize() {
 }
 
 function emulatorLaunchArgs() {
-  return window.matchMedia?.("(pointer: coarse)")?.matches ? MOBILE_EMULATOR_ARGS.slice() : [];
+  return isMobileExperience() ? MOBILE_EMULATOR_ARGS.slice() : [];
+}
+
+function isMobileExperience() {
+  return !!window.matchMedia?.("(pointer: coarse)")?.matches;
 }
 
 syncViewportSize();
@@ -1533,6 +1591,7 @@ function patchIniValue(text, section, key, value) {
 async function forceGamesDirectoryConfig(FS) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+  const applyMobileTouchDefaults = isMobileExperience();
 
   for (const root of PERSIST_ROOTS) {
     const iniPath = root + "/PSP/SYSTEM/ppsspp.ini";
@@ -1540,13 +1599,18 @@ async function forceGamesDirectoryConfig(FS) {
       fsMkdirP(FS, root + "/PSP/SYSTEM");
       let text = "";
       try { text = decoder.decode(FS.readFile(iniPath)); } catch(e) {}
-      const patched = patchIniValue(text, "General", "CurrentDirectory", VIRTUAL_GAME_DIR);
+      let patched = patchIniValue(text, "General", "CurrentDirectory", VIRTUAL_GAME_DIR);
+      if (applyMobileTouchDefaults) {
+        for (const [section, key, value] of MOBILE_TOUCH_CONFIG) {
+          patched = patchIniValue(patched, section, key, value);
+        }
+      }
       const bytes = encoder.encode(patched);
       FS.writeFile(iniPath, bytes);
       await opfsPut(iniPath, bytes);
-      log("Config: default game browser directory set to " + VIRTUAL_GAME_DIR + " in " + iniPath, "ok");
+      log("Config: web defaults applied to " + iniPath + (applyMobileTouchDefaults ? " (mobile touch/UI enabled)" : ""), "ok");
     } catch(e) {
-      log("Config: failed to set game browser directory at " + iniPath + ": " + e.message, "warn");
+      log("Config: failed to apply web defaults at " + iniPath + ": " + e.message, "warn");
     }
   }
 }
