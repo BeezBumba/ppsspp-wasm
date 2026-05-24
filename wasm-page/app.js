@@ -84,6 +84,11 @@ const GOOGLE_GIS_SRC = "https://accounts.google.com/gsi/client";
 const GOOGLE_AUTH_TIMEOUT_MS = 90000;
 const GOOGLE_AUTO_SYNC_KEY      = "ppsspp_drive_autosync";      // "1" / "0"
 const GOOGLE_AUTO_SYNC_RATE_KEY = "ppsspp_drive_autosync_rate"; // seconds
+const NETWORK_ENABLE_KEY = "ppsspp_network_enable";
+const NETWORK_SERVER_KEY = "ppsspp_network_server";
+const NETWORK_NICK_KEY   = "ppsspp_network_nick";
+const NETWORK_MAC_KEY    = "ppsspp_network_mac";
+const ADHOC_WS_PORT      = 27312;
 
 let stableViewportWidth = 0;
 let stableViewportHeight = 0;
@@ -240,6 +245,16 @@ const driveActivityEl = document.getElementById("driveActivity");
 const driveRemoteList = document.getElementById("driveRemoteList");
 const driveBadgeEl    = document.getElementById("driveBadge");
 const driveBadgeText  = document.getElementById("driveBadgeText");
+const networkEnableToggle = document.getElementById("networkEnableToggle");
+const networkServerInput  = document.getElementById("networkServerInput");
+const networkNickInput    = document.getElementById("networkNickInput");
+const networkMacInput     = document.getElementById("networkMacInput");
+const networkUseThisHostBtn = document.getElementById("networkUseThisHostBtn");
+const networkTestBtn      = document.getElementById("networkTestBtn");
+const networkSaveBtn      = document.getElementById("networkSaveBtn");
+const networkActivityEl   = document.getElementById("networkActivity");
+const netServerEl         = document.getElementById("iNetServer");
+const netPortEl           = document.getElementById("iNetPort");
 
 // Panel toggle (hidden by default; restore from localStorage)
 const PANEL_KEY = "ppsspp_panel_open";
@@ -248,6 +263,15 @@ panelToggleBtn.addEventListener("click", () => {
   const open = document.body.classList.toggle("panel-open");
   localStorage.setItem(PANEL_KEY, open ? "1" : "0");
 });
+
+updateNetworkConfigUI();
+networkUseThisHostBtn?.addEventListener("click", () => {
+  if (networkServerInput) networkServerInput.value = defaultNetworkServerHost();
+  saveNetworkConfigFromUI();
+});
+networkSaveBtn?.addEventListener("click", saveNetworkConfigFromUI);
+networkEnableToggle?.addEventListener("change", saveNetworkConfigFromUI);
+networkTestBtn?.addEventListener("click", testNetworkRelay);
 
 /* ── State ──────────────────────────────────────────────────────── */
 let selectedGame = null;
@@ -1588,6 +1612,441 @@ function patchIniValue(text, section, key, value) {
   return lines.join("\n").replace(/\n*$/, "\n");
 }
 
+function defaultNetworkServerHost() {
+  const host = location.hostname || "127.0.0.1";
+  return host === "localhost" ? "127.0.0.1" : host;
+}
+
+function normalizeNetworkServerHost(value) {
+  let host = String(value || "").trim();
+  if (!host) return defaultNetworkServerHost();
+
+  try {
+    const parsed = new URL(host.includes("://") ? host : "ws://" + host);
+    host = parsed.hostname || host;
+  } catch(e) {
+    host = host.split(/[/?#]/, 1)[0];
+    if (host.startsWith("[") && host.includes("]")) {
+      host = host.slice(1, host.indexOf("]"));
+    } else {
+      host = host.replace(/:\d+$/, "");
+    }
+  }
+
+  host = host.trim();
+  return host || defaultNetworkServerHost();
+}
+
+function browserRelayServerHost() {
+  return normalizeNetworkServerHost(defaultNetworkServerHost());
+}
+
+function randomPspMac() {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  bytes[0] = (bytes[0] & 0xFE) | 0x02;
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join(":");
+}
+
+function sanitizeNetworkNick(value) {
+  const clean = String(value || "WebPlayer").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16);
+  return clean.length >= 3 ? clean : "WebPlayer";
+}
+
+function sanitizeNetworkMac(value) {
+  const clean = String(value || "").trim().toLowerCase();
+  return /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(clean) ? clean : randomPspMac();
+}
+
+function loadNetworkConfig() {
+  if (localStorage.getItem(NETWORK_ENABLE_KEY) === null) {
+    localStorage.setItem(NETWORK_ENABLE_KEY, "1");
+  }
+  let server = localStorage.getItem(NETWORK_SERVER_KEY);
+  if (!server) {
+    server = browserRelayServerHost();
+  } else {
+    server = normalizeNetworkServerHost(server);
+  }
+  if (server !== browserRelayServerHost()) server = browserRelayServerHost();
+  localStorage.setItem(NETWORK_SERVER_KEY, server);
+  let nick = localStorage.getItem(NETWORK_NICK_KEY);
+  if (!nick) {
+    nick = "WebPlayer";
+    localStorage.setItem(NETWORK_NICK_KEY, nick);
+  }
+  let mac = localStorage.getItem(NETWORK_MAC_KEY);
+  if (!mac || !/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(mac)) {
+    mac = randomPspMac();
+    localStorage.setItem(NETWORK_MAC_KEY, mac);
+  }
+  return {
+    enabled: localStorage.getItem(NETWORK_ENABLE_KEY) === "1",
+    server,
+    nick: sanitizeNetworkNick(nick),
+    mac: sanitizeNetworkMac(mac),
+  };
+}
+
+function testWebSocket(url, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      try { ws.close(); } catch(e) {}
+      reject(new Error("timeout"));
+    }, timeoutMs);
+    let ws;
+    try {
+      ws = new WebSocket(url, "binary");
+      ws.binaryType = "arraybuffer";
+      ws.onopen = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        ws.close();
+        resolve();
+      };
+      ws.onerror = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        reject(new Error("connection failed"));
+      };
+    } catch(e) {
+      clearTimeout(timer);
+      reject(e);
+    }
+  });
+}
+
+async function testNetworkRelay() {
+  const cfg = saveNetworkConfigFromUI();
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  const relayHost = browserRelayServerHost();
+  const base = `${scheme}://${relayHost}:${ADHOC_WS_PORT}`;
+  updateNetworkConfigUI(cfg, "Testing relay...");
+  try {
+    await testWebSocket(base + "/", 5000);
+    await testWebSocket(base + `/udp?mac=${encodeURIComponent(cfg.mac)}&port=39999`, 5000);
+    updateNetworkConfigUI(cfg, "Relay OK. Use this host as the ad hoc server in browser builds.");
+    log("Network: relay test passed for " + base, "ok");
+  } catch(e) {
+    const message = "Relay test failed: " + (e?.message || e) + ". Accept the HTTPS certificate and use this host, not a public desktop-only server.";
+    updateNetworkConfigUI(cfg, message);
+    log("Network: " + message, "err");
+  }
+}
+
+function saveNetworkConfigFromUI() {
+  const cfg = {
+    enabled: !!networkEnableToggle?.checked,
+    server: browserRelayServerHost(),
+    nick: sanitizeNetworkNick(networkNickInput?.value),
+    mac: sanitizeNetworkMac(networkMacInput?.value),
+  };
+  localStorage.setItem(NETWORK_ENABLE_KEY, cfg.enabled ? "1" : "0");
+  localStorage.setItem(NETWORK_SERVER_KEY, cfg.server);
+  localStorage.setItem(NETWORK_NICK_KEY, cfg.nick);
+  localStorage.setItem(NETWORK_MAC_KEY, cfg.mac);
+  updateNetworkConfigUI(cfg, "Saved. Restart PPSSPP to re-apply network defaults.");
+  return cfg;
+}
+
+function updateNetworkConfigUI(cfg = loadNetworkConfig(), message = "") {
+  if (networkEnableToggle) networkEnableToggle.checked = cfg.enabled;
+  if (networkServerInput) networkServerInput.value = cfg.server;
+  if (networkNickInput) networkNickInput.value = cfg.nick;
+  if (networkMacInput) networkMacInput.value = cfg.mac;
+  if (netServerEl) netServerEl.textContent = cfg.server;
+  if (netPortEl) netPortEl.textContent = String(ADHOC_WS_PORT);
+  if (networkActivityEl && message) networkActivityEl.textContent = message;
+}
+
+function installWebSocketNetworkShim() {
+  if (installWebSocketNetworkShim.installed || !window.WebSocket) return;
+  installWebSocketNetworkShim.installed = true;
+  const NativeWebSocket = window.WebSocket;
+  window.WebSocket = function(url, protocols) {
+    let nextUrl = String(url);
+    if (location.protocol === "https:" && nextUrl.startsWith("ws://")) {
+      try {
+        const parsed = new URL(nextUrl);
+        if (parsed.port === String(ADHOC_WS_PORT) || normalizeNetworkServerHost(parsed.hostname) === browserRelayServerHost()) {
+          parsed.protocol = "wss:";
+          nextUrl = parsed.toString();
+        }
+      } catch(e) {}
+    }
+    return new NativeWebSocket(nextUrl, protocols);
+  };
+  window.WebSocket.prototype = NativeWebSocket.prototype;
+  Object.defineProperty(window.WebSocket, "OPEN", { value: NativeWebSocket.OPEN });
+  Object.defineProperty(window.WebSocket, "CONNECTING", { value: NativeWebSocket.CONNECTING });
+  Object.defineProperty(window.WebSocket, "CLOSING", { value: NativeWebSocket.CLOSING });
+  Object.defineProperty(window.WebSocket, "CLOSED", { value: NativeWebSocket.CLOSED });
+}
+
+function numericHostToText(host) {
+  if (typeof host !== "number") return String(host || "");
+  return [host & 255, (host >> 8) & 255, (host >> 16) & 255, (host >> 24) & 255].join(".");
+}
+
+function relayPacket(dstHost, dstPort, payload) {
+  const hostBytes = new TextEncoder().encode(numericHostToText(dstHost));
+  if (hostBytes.length > 255) throw new Error("Relay host is too long");
+  const frame = new Uint8Array(4 + hostBytes.length + 2 + payload.byteLength);
+  frame[0] = 0x50; frame[1] = 0x55; frame[2] = 0x31; frame[3] = hostBytes.length;
+  frame.set(hostBytes, 4);
+  frame[4 + hostBytes.length] = (dstPort >> 8) & 255;
+  frame[5 + hostBytes.length] = dstPort & 255;
+  frame.set(payload, 6 + hostBytes.length);
+  return frame;
+}
+
+function streamRelayPacket(kind, connId, payload = new Uint8Array(0)) {
+  const frame = new Uint8Array(8 + payload.byteLength);
+  frame[0] = 0x50; frame[1] = 0x54; frame[2] = 0x31; frame[3] = kind;
+  frame[4] = (connId >>> 24) & 255;
+  frame[5] = (connId >>> 16) & 255;
+  frame[6] = (connId >>> 8) & 255;
+  frame[7] = connId & 255;
+  frame.set(payload, 8);
+  return frame;
+}
+
+function relayUrl(path, params) {
+  const cfg = loadNetworkConfig();
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  const query = new URLSearchParams(params);
+  return `${scheme}://${cfg.server}:${ADHOC_WS_PORT}${path}?${query.toString()}`;
+}
+
+function socketPayload(buffer, offset, length) {
+  if (ArrayBuffer.isView(buffer)) {
+    offset += buffer.byteOffset;
+    buffer = buffer.buffer;
+  }
+  let payload = buffer.slice(offset, offset + length);
+  if (payload instanceof SharedArrayBuffer) {
+    payload = new Uint8Array(new Uint8Array(payload)).buffer;
+  }
+  return new Uint8Array(payload);
+}
+
+function installSockFSAdhocRelay() {
+  const SOCKFS = window.SOCKFS;
+  if (!SOCKFS?.websocket_sock_ops || SOCKFS.websocket_sock_ops.__ppssppRelayInstalled) return false;
+
+  const ops = SOCKFS.websocket_sock_ops;
+  const originalBind = ops.bind.bind(ops);
+  const originalListen = ops.listen.bind(ops);
+  const originalConnect = ops.connect.bind(ops);
+  const originalClose = ops.close.bind(ops);
+  const originalSendmsg = ops.sendmsg.bind(ops);
+  const decoder = new TextDecoder();
+
+  function openRelay(sock) {
+    const cfg = loadNetworkConfig();
+    if (!cfg.enabled || sock.type !== 2 || !sock.sport || sock.__ppssppRelay) return;
+    const url = relayUrl("/udp", { mac: cfg.mac, port: sock.sport });
+    const relay = {
+      ws: new WebSocket(url, "binary"),
+      queue: [],
+      open: false,
+    };
+    relay.ws.binaryType = "arraybuffer";
+    relay.ws.onopen = () => {
+      relay.open = true;
+      while (relay.queue.length) relay.ws.send(relay.queue.shift());
+    };
+    relay.ws.onmessage = event => {
+      const data = new Uint8Array(event.data);
+      if (data.length < 7 || data[0] !== 0x50 || data[1] !== 0x55 || data[2] !== 0x31) return;
+      const hostLen = data[3];
+      const headerLen = 4 + hostLen + 2;
+      if (data.length < headerLen) return;
+      const sourceHost = decoder.decode(data.slice(4, 4 + hostLen));
+      const sourcePort = (data[4 + hostLen] << 8) | data[5 + hostLen];
+      sock.recv_queue.push({
+        addr: sourceHost,
+        port: sourcePort,
+        data: data.slice(headerLen),
+      });
+      SOCKFS.emit("message", sock.stream.fd);
+    };
+    relay.ws.onclose = () => { relay.open = false; };
+    relay.ws.onerror = () => { relay.open = false; };
+    sock.__ppssppRelay = relay;
+  }
+
+  function makeVirtualStreamSocket(listenSock, listenRelay, connId, sourceHost, sourcePort) {
+    const socket = {
+      url: `ws://${sourceHost}:${sourcePort}`,
+      binaryType: "arraybuffer",
+      readyState: WebSocket.OPEN,
+      send(data) {
+        if (this.readyState !== WebSocket.OPEN) return;
+        const payload = data instanceof Uint8Array ? data : new Uint8Array(data);
+        listenRelay.ws.send(streamRelayPacket(2, connId, payload));
+      },
+      close() {
+        if (this.readyState === WebSocket.CLOSED) return;
+        this.readyState = WebSocket.CLOSED;
+        try { listenRelay.ws.send(streamRelayPacket(3, connId)); } catch(e) {}
+        setTimeout(() => this.onclose?.(), 0);
+      },
+      closeLocal() {
+        if (this.readyState === WebSocket.CLOSED) return;
+        this.readyState = WebSocket.CLOSED;
+        setTimeout(() => this.onclose?.(), 0);
+      },
+    };
+    const newsock = SOCKFS.createSocket(listenSock.family, listenSock.type, listenSock.protocol);
+    const peer = ops.createPeer(newsock, socket);
+    newsock.daddr = peer.addr;
+    newsock.dport = peer.port;
+    newsock.stream.flags = listenSock.stream.flags;
+    listenSock.__ppssppTcpAccepted[connId] = socket;
+    listenSock.pending.push(newsock);
+    SOCKFS.emit("connection", newsock.stream.fd);
+  }
+
+  function openTcpListener(sock) {
+    const cfg = loadNetworkConfig();
+    if (!cfg.enabled || sock.type !== 1 || !sock.sport || sock.__ppssppTcpListenRelay) return;
+    const relay = {
+      ws: new WebSocket(relayUrl("/tcp-listen", { mac: cfg.mac, port: sock.sport }), "binary"),
+      open: false,
+    };
+    sock.__ppssppTcpAccepted = {};
+    relay.ws.binaryType = "arraybuffer";
+    relay.ws.onopen = () => {
+      relay.open = true;
+      SOCKFS.emit("listen", sock.stream.fd);
+    };
+    relay.ws.onmessage = event => {
+      const data = new Uint8Array(event.data);
+      if (data.length < 8 || data[0] !== 0x50 || data[1] !== 0x54 || data[2] !== 0x31) return;
+      const kind = data[3];
+      const connId = (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
+      if (kind === 1) {
+        if (data.length < 11) return;
+        const hostLen = data[8];
+        const headerLen = 9 + hostLen + 2;
+        if (data.length < headerLen) return;
+        const sourceHost = decoder.decode(data.slice(9, 9 + hostLen));
+        const sourcePort = (data[9 + hostLen] << 8) | data[10 + hostLen];
+        makeVirtualStreamSocket(sock, relay, connId, sourceHost, sourcePort);
+      } else if (kind === 2) {
+        const accepted = sock.__ppssppTcpAccepted?.[connId];
+        if (!accepted || accepted.readyState !== WebSocket.OPEN) return;
+        const payload = data.slice(8);
+        accepted.onmessage?.({ data: payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength) });
+      } else if (kind === 3) {
+        const accepted = sock.__ppssppTcpAccepted?.[connId];
+        accepted?.closeLocal();
+        delete sock.__ppssppTcpAccepted?.[connId];
+      }
+    };
+    relay.ws.onclose = () => { relay.open = false; };
+    relay.ws.onerror = () => { relay.open = false; };
+    sock.__ppssppTcpListenRelay = relay;
+    sock.server = {
+      close() {
+        try { relay.ws.close(); } catch(e) {}
+      },
+    };
+  }
+
+  ops.bind = function(sock, addr, port) {
+    const result = originalBind(sock, addr, port);
+    openRelay(sock);
+    return result;
+  };
+
+  ops.listen = function(sock, backlog) {
+    if (sock.type !== 1 || !loadNetworkConfig().enabled) {
+      return originalListen(sock, backlog);
+    }
+    if (sock.server) throw new FS.ErrnoError(28);
+    openTcpListener(sock);
+  };
+
+  ops.connect = function(sock, addr, port) {
+    if (sock.type !== 1 || !loadNetworkConfig().enabled) {
+      return originalConnect(sock, addr, port);
+    }
+    if (sock.server) throw new FS.ErrnoError(138);
+    if (!sock.sport) sock.sport = 49152 + Math.floor(Math.random() * 12000);
+    const cfg = loadNetworkConfig();
+    const url = relayUrl("/tcp-connect", {
+      mac: cfg.mac,
+      port: sock.sport,
+      dst: numericHostToText(addr),
+      dstport: port,
+    });
+    const ws = new WebSocket(url, "binary");
+    ws.binaryType = "arraybuffer";
+    const peer = { addr, port, socket: ws, msg_send_queue: [] };
+    ops.addPeer(sock, peer);
+    ops.handlePeerEvents(sock, peer);
+    sock.daddr = addr;
+    sock.dport = port;
+    sock.connecting = true;
+  };
+
+  ops.sendmsg = function(sock, buffer, offset, length, addr, port) {
+    if (sock.type !== 2 || !loadNetworkConfig().enabled) {
+      return originalSendmsg(sock, buffer, offset, length, addr, port);
+    }
+    openRelay(sock);
+    if (!sock.__ppssppRelay || addr === undefined || port === undefined) {
+      return originalSendmsg(sock, buffer, offset, length, addr, port);
+    }
+    const frame = relayPacket(addr, port, socketPayload(buffer, offset, length));
+    const relay = sock.__ppssppRelay;
+    if (relay.open && relay.ws.readyState === WebSocket.OPEN) relay.ws.send(frame);
+    else relay.queue.push(frame);
+    return length;
+  };
+
+  ops.close = function(sock) {
+    if (sock.__ppssppRelay) {
+      try { sock.__ppssppRelay.ws.close(); } catch(e) {}
+      sock.__ppssppRelay = null;
+    }
+    if (sock.__ppssppTcpListenRelay) {
+      try { sock.__ppssppTcpListenRelay.ws.close(); } catch(e) {}
+      sock.__ppssppTcpListenRelay = null;
+      sock.__ppssppTcpAccepted = {};
+    }
+    return originalClose(sock);
+  };
+
+  ops.__ppssppRelayInstalled = true;
+  log("Network: SOCKFS UDP/PTP relay installed.", "ok");
+  return true;
+}
+
+async function applyNetworkConfig(FS, text) {
+  const cfg = loadNetworkConfig();
+  let patched = text;
+  patched = patchIniValue(patched, "Network", "EnableWlan", cfg.enabled ? "True" : "False");
+  patched = patchIniValue(patched, "Network", "proAdhocServer", cfg.server);
+  patched = patchIniValue(patched, "Network", "EnableAdhocServer", "False");
+  patched = patchIniValue(patched, "Network", "ForcedFirstConnect", "True");
+  patched = patchIniValue(patched, "Network", "PortOffset", "10000");
+  patched = patchIniValue(patched, "Network", "MinTimeout", "1");
+  patched = patchIniValue(patched, "Network", "EnableUPnP", "False");
+  patched = patchIniValue(patched, "SystemParam", "NickName", cfg.nick);
+  patched = patchIniValue(patched, "SystemParam", "MacAddress", cfg.mac);
+  patched = patchIniValue(patched, "SystemParam", "WlanAdhocChannel", "0");
+  if (cfg.enabled) installWebSocketNetworkShim();
+  return patched;
+}
+
 async function forceGamesDirectoryConfig(FS) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
@@ -1600,6 +2059,7 @@ async function forceGamesDirectoryConfig(FS) {
       let text = "";
       try { text = decoder.decode(FS.readFile(iniPath)); } catch(e) {}
       let patched = patchIniValue(text, "General", "CurrentDirectory", VIRTUAL_GAME_DIR);
+      patched = await applyNetworkConfig(FS, patched);
       if (applyMobileTouchDefaults) {
         for (const [section, key, value] of MOBILE_TOUCH_CONFIG) {
           patched = patchIniValue(patched, section, key, value);
@@ -3552,6 +4012,7 @@ function activatePanelTab(tabName) {
   if (panelTabSelect && panelTabSelect.value !== name) panelTabSelect.value = name;
   if (name === "library") refreshLibrary();
   if (name === "drive") initDriveConfigUI();
+  if (name === "network") updateNetworkConfigUI();
 }
 
 panelTabSelect?.addEventListener("change", e => activatePanelTab(e.currentTarget.value));
@@ -3690,7 +4151,12 @@ async function start() {
   const script = document.createElement("script");
   script.src   = BUILD_DIR + "PPSSPPSDL.js?v=" + BUILD_STAMP;
   log("Loading script: " + script.src);
-  script.onload  = () => log("PPSSPPSDL.js loaded.", "ok");
+  script.onload  = () => {
+    log("PPSSPPSDL.js loaded.", "ok");
+    if (loadNetworkConfig().enabled && !installSockFSAdhocRelay()) {
+      log("Network: SOCKFS relay hook was not available in this build.", "warn");
+    }
+  };
   script.onerror = () => { setStatus("Failed to load PPSSPPSDL.js", "err"); hideLoading(); };
   document.body.appendChild(script);
 }

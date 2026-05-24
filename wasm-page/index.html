@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-512.svg">
-  <link rel="stylesheet" href="app.css?v=26">
+  <link rel="stylesheet" href="app.css?v=27">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -120,6 +120,7 @@
         <select id="panelTabSelect" class="panel-tab-select" aria-label="Panel section">
           <option value="library">Library</option>
           <option value="saves">Saves</option>
+          <option value="network">Network</option>
           <option value="drive">Google Drive</option>
           <option value="storage">OPFS Storage</option>
           <option value="info">System</option>
@@ -131,6 +132,7 @@
       <div class="tabs" aria-hidden="true">
         <div class="tab active" data-tab="library"><i data-lucide="gamepad-2"></i> Library</div>
         <div class="tab"        data-tab="saves"><i data-lucide="save"></i> Saves</div>
+        <div class="tab"        data-tab="network"><i data-lucide="radio-tower"></i> Network</div>
         <div class="tab"        data-tab="drive"><i data-lucide="cloud"></i> Drive</div>
         <div class="tab"        data-tab="storage"><i data-lucide="hard-drive"></i> OPFS</div>
         <div class="tab"        data-tab="info"><i data-lucide="settings"></i> System</div>
@@ -169,6 +171,34 @@
           <div id="savesEmpty">Start PPSSPP and play a game,<br>then click Refresh to see your saves.</div>
           <div id="savesList" style="display:none"></div>
           <div class="saves-stats" id="savesStats"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabNetwork">
+        <div id="networkPanel">
+          <div class="info-group">
+            <h3>Ad Hoc</h3>
+            <div class="info-row"><span class="info-key">Mode</span> <span class="info-val" id="iNetMode">Browser WebSocket lobby</span></div>
+            <div class="info-row"><span class="info-key">Server</span> <span class="info-val" id="iNetServer">&#8212;</span></div>
+            <div class="info-row"><span class="info-key">Port</span> <span class="info-val" id="iNetPort">27312</span></div>
+          </div>
+          <div class="network-config">
+            <label class="network-toggle">
+              <input type="checkbox" id="networkEnableToggle">
+              <span>Enable networking before launch</span>
+            </label>
+            <input id="networkServerInput" type="text" spellcheck="false" autocomplete="off" placeholder="Ad hoc server host">
+            <div class="network-two">
+              <input id="networkNickInput" type="text" maxlength="16" spellcheck="false" autocomplete="off" placeholder="Nickname">
+              <input id="networkMacInput" type="text" spellcheck="false" autocomplete="off" placeholder="MAC address">
+            </div>
+            <div class="network-actions">
+              <button id="networkUseThisHostBtn"><i data-lucide="server"></i> This Host</button>
+              <button id="networkTestBtn"><i data-lucide="activity"></i> Test</button>
+              <button id="networkSaveBtn"><i data-lucide="save"></i> Save</button>
+            </div>
+          </div>
+          <div id="networkActivity" class="network-activity">Browser multiplayer uses this page host as the Python relay. Public desktop ad hoc servers like socom.cc do not accept browser sockets directly.</div>
         </div>
       </div>
 
@@ -349,7 +379,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=32"></script>
   <script>lucide.createIcons();</script>
 </body>
 </html>

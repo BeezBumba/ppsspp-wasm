@@ -8,6 +8,6 @@ WORKDIR /app/server
 
 COPY server/serve.py ./serve.py
 
-EXPOSE 8081
+EXPOSE 8081 27312
 
-CMD ["python3", "serve.py", "--https", "--bind", "0.0.0.0", "--port", "8081"]
+CMD ["python3", "serve.py", "--https", "--bind", "0.0.0.0", "--port", "8081", "--adhoc-ws"]
