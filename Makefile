@@ -3,7 +3,7 @@
 WASM_DEV_BUILD_DIR ?= build-wasm
 WASM_RELEASE_BUILD_DIR ?= build-wasm-release
 WASM_JOBS ?= -j
-CMAKE ?= cmake
+CMAKE ?= $(or $(wildcard /usr/bin/cmake),cmake)
 
 WASM_COMMON_CMAKE_ARGS := \
 	-G Ninja \
