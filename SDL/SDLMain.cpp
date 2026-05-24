@@ -28,6 +28,10 @@ SDLJoystick *joystick = NULL;
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
+
+#ifndef PPSSPP_WASM_MAIN_LOOP_FPS
+#define PPSSPP_WASM_MAIN_LOOP_FPS 0
+#endif
 #endif
 
 #if defined(__EMSCRIPTEN__) && defined(PPSSPP_WASM_TRACE)
@@ -853,7 +857,11 @@ int64_t System_GetPropertyInt(SystemProperty prop) {
 float System_GetPropertyFloat(SystemProperty prop) {
 	switch (prop) {
 	case SYSPROP_DISPLAY_REFRESH_RATE:
+#ifdef __EMSCRIPTEN__
+		return (float)std::clamp(g_Config.iDisplayRefreshRate, 30, 1000);
+#else
 		return g_RefreshRate;
+#endif
 	case SYSPROP_DISPLAY_DPI:
 		return (g_ForcedDPI == 0.0f ? g_DesktopDPI : g_ForcedDPI) * 96.0;
 	case SYSPROP_DISPLAY_SAFE_INSET_LEFT:
@@ -1627,6 +1635,37 @@ static int printUsage(const char *progname)
 }
 
 #ifdef __EMSCRIPTEN__
+static int EmscriptenMainLoopFPS() {
+#if PPSSPP_WASM_MAIN_LOOP_FPS < 0
+	return 0;
+#elif PPSSPP_WASM_MAIN_LOOP_FPS > 0
+	return PPSSPP_WASM_MAIN_LOOP_FPS;
+#else
+	// Let PPSSPP's configured display timing choose the browser callback rate.
+	// NativeFrame/sceDisplay still own emulation pacing; this only avoids RAF
+	// coupling to the canvas/monitor refresh on the browser side.
+	return std::clamp(g_Config.iDisplayRefreshRate, 30, 1000);
+#endif
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void PPSSPP_ToggleFullscreen() {
+	g_Config.bFullScreen = !g_Config.bFullScreen;
+	System_ApplyFullscreenState();
+}
+
+static void UpdateEmscriptenMainLoopTiming() {
+#if PPSSPP_WASM_MAIN_LOOP_FPS >= 0
+	static int lastTimeoutMs = 0;
+	const int fps = EmscriptenMainLoopFPS();
+	const int timeoutMs = std::max(1, (int)(1000.0f / fps));
+	if (timeoutMs != lastTimeoutMs) {
+		emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, timeoutMs);
+		lastTimeoutMs = timeoutMs;
+		WASM_TRACE("Emscripten main loop timing timeout=%dms fps=%d", timeoutMs, fps);
+	}
+#endif
+}
+
 struct EmscriptenMainLoopState {
 	SDL_Window *window;
 	GraphicsContext *graphicsContext;
@@ -1645,6 +1684,8 @@ static void EmscriptenMainLoop(void *arg) {
 	SDL_Window *window = state->window;
 	GraphicsContext *graphicsContext = state->graphicsContext;
 	InputStateTracker *inputTracker = state->inputTracker;
+
+	UpdateEmscriptenMainLoopTiming();
 
 	{
 		SDL_Event event;
@@ -2162,7 +2203,9 @@ int main(int argc, char *argv[]) {
 			(int)mode,
 			force_gl_version,
 		};
-		emscripten_set_main_loop_arg(EmscriptenMainLoop, &loopState, 0, true);
+		const int mainLoopFPS = EmscriptenMainLoopFPS();
+		WASM_TRACE("starting Emscripten main loop fps=%d", mainLoopFPS);
+		emscripten_set_main_loop_arg(EmscriptenMainLoop, &loopState, mainLoopFPS, true);
 	}
 #endif
 

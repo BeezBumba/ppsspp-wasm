@@ -4032,8 +4032,18 @@ document.addEventListener("fullscreenchange", () => {
     document.removeEventListener("pointerdown", _showCursor);
   }
 });
+
+function togglePPSSPPFullscreen() {
+  const toggleFullscreen = window.Module?._PPSSPP_ToggleFullscreen;
+  if (typeof toggleFullscreen !== "function") {
+    log("Fullscreen toggle requested before PPSSPP runtime is ready.", "warn");
+    return;
+  }
+  toggleFullscreen();
+}
+
 fullscreenBtn.addEventListener("click", () => {
-  canvas.requestFullscreen?.({ navigationUI: "hide" });
+  togglePPSSPPFullscreen();
   canvas.focus();
   describeAudio();
 });
