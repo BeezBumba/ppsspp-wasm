@@ -25,7 +25,6 @@ SDLJoystick *joystick = NULL;
 #include <thread>
 #include <locale>
 #include <vector>
-#include <deque>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -153,23 +152,34 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 	constexpr int pspMixRate = 44100;
 	constexpr float wasmOutputGain = 0.95f;
 	thread_local std::vector<short> mixBuffer;
-	thread_local std::deque<short> sourceQueue;
+	thread_local std::vector<short> sourceBuffer;
+	thread_local int sourceStartSamples = 0;
+	thread_local int sourceQueuedSamples = 0;
 	thread_local uint32_t sourcePhase = 0;
 
 	if (g_sampleRate == pspMixRate) {
-		sourceQueue.clear();
+		sourceStartSamples = 0;
+		sourceQueuedSamples = 0;
 		sourcePhase = 0;
 		mixBuffer.resize(numSamples * 2);
 		NativeMix(mixBuffer.data(), numSamples, pspMixRate, userdata);
 	} else {
 		const uint32_t step = (uint32_t)(((uint64_t)pspMixRate << 16) / g_sampleRate);
 		const int neededSourceSamples = (int)(((uint64_t)sourcePhase + (uint64_t)step * (numSamples - 1)) >> 16) + 2;
-		const int queuedSourceSamples = (int)sourceQueue.size() / 2;
-		if (queuedSourceSamples < neededSourceSamples) {
-			const int refillSamples = neededSourceSamples - queuedSourceSamples + 256;
+		if (sourceQueuedSamples < neededSourceSamples) {
+			const int refillSamples = neededSourceSamples - sourceQueuedSamples + 256;
+			if (sourceStartSamples > 0 && (sourceStartSamples + sourceQueuedSamples + refillSamples) * 2 > (int)sourceBuffer.size()) {
+				std::move(sourceBuffer.begin() + sourceStartSamples * 2, sourceBuffer.begin() + (sourceStartSamples + sourceQueuedSamples) * 2, sourceBuffer.begin());
+				sourceStartSamples = 0;
+			}
+			const int writeStartSamples = sourceStartSamples + sourceQueuedSamples;
+			if ((writeStartSamples + refillSamples) * 2 > (int)sourceBuffer.size()) {
+				sourceBuffer.resize((writeStartSamples + refillSamples) * 2);
+			}
 			mixBuffer.resize(refillSamples * 2);
 			NativeMix(mixBuffer.data(), refillSamples, pspMixRate, userdata);
-			sourceQueue.insert(sourceQueue.end(), mixBuffer.begin(), mixBuffer.end());
+			std::copy(mixBuffer.begin(), mixBuffer.end(), sourceBuffer.begin() + writeStartSamples * 2);
+			sourceQueuedSamples += refillSamples;
 		}
 	}
 
@@ -188,9 +198,10 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 		for (int i = 0; i < numSamples; i++) {
 			const int src = (int)(sourcePhase >> 16);
 			const int frac = (int)(sourcePhase & 0xFFFF);
+			const short *source = sourceBuffer.data() + (sourceStartSamples + src) * 2;
 			for (int c = 0; c < 2; c++) {
-				const int a = sourceQueue[src * 2 + c];
-				const int b = sourceQueue[(src + 1) * 2 + c];
+				const int a = source[c];
+				const int b = source[2 + c];
 				const int sample = a + (int)(((int64_t)(b - a) * frac) >> 16);
 				peak = std::max(peak, std::abs(sample));
 				output[i * 2 + c] = sample * (wasmOutputGain / 32768.0f);
@@ -199,7 +210,8 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 		}
 		const int consumed = (int)(sourcePhase >> 16);
 		if (consumed > 0) {
-			sourceQueue.erase(sourceQueue.begin(), sourceQueue.begin() + consumed * 2);
+			sourceStartSamples += consumed;
+			sourceQueuedSamples -= consumed;
 			sourcePhase &= 0xFFFF;
 		}
 	}
@@ -221,16 +233,18 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 		for (int i = 0; i < numSamples; i++) {
 			const int src = (int)(sourcePhase >> 16);
 			const int frac = (int)(sourcePhase & 0xFFFF);
+			const short *source = sourceBuffer.data() + (sourceStartSamples + src) * 2;
 			for (int c = 0; c < 2; c++) {
-				const int a = sourceQueue[src * 2 + c];
-				const int b = sourceQueue[(src + 1) * 2 + c];
+				const int a = source[c];
+				const int b = source[2 + c];
 				output[i * 2 + c] = (a + (int)(((int64_t)(b - a) * frac) >> 16)) * (wasmOutputGain / 32768.0f);
 			}
 			sourcePhase += step;
 		}
 		const int consumed = (int)(sourcePhase >> 16);
 		if (consumed > 0) {
-			sourceQueue.erase(sourceQueue.begin(), sourceQueue.begin() + consumed * 2);
+			sourceStartSamples += consumed;
+			sourceQueuedSamples -= consumed;
 			sourcePhase &= 0xFFFF;
 		}
 	}
@@ -1591,30 +1605,6 @@ struct EmscriptenMainLoopState {
 	int forceGLVersion;
 };
 
-static bool EmscriptenShouldRunNativeFrame() {
-	constexpr double targetFrameMs = 1000.0 / 60.0;
-	static double nextFrameMs = 0.0;
-
-	const double nowMs = emscripten_get_now();
-	if (nextFrameMs == 0.0) {
-		nextFrameMs = nowMs + targetFrameMs;
-		return true;
-	}
-
-	if (nowMs + 1.0 < nextFrameMs) {
-		return false;
-	}
-
-	if (nowMs - nextFrameMs > targetFrameMs * 2.0) {
-		nextFrameMs = nowMs + targetFrameMs;
-	} else {
-		do {
-			nextFrameMs += targetFrameMs;
-		} while (nextFrameMs <= nowMs);
-	}
-	return true;
-}
-
 static void EmscriptenMainLoop(void *arg) {
 	auto *state = (EmscriptenMainLoopState *)arg;
 	SDL_Window *window = state->window;
@@ -1631,7 +1621,7 @@ static void EmscriptenMainLoop(void *arg) {
 		emscripten_cancel_main_loop();
 		return;
 	}
-	if (emuThreadState == (int)EmuThreadState::DISABLED && EmscriptenShouldRunNativeFrame()) {
+	if (emuThreadState == (int)EmuThreadState::DISABLED) {
 		NativeFrame(graphicsContext);
 	}
 	if (g_QuitRequested || g_RestartRequested) {

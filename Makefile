@@ -28,21 +28,20 @@ wasm-dev-build:
 wasm-dev: wasm-dev-config wasm-dev-build
 
 wasm-release-config:
-	emcmake $(CMAKE) -S . -B $(WASM_RELEASE_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=Release -DWASM_MAX_PERF=ON -DWASM_ENABLE_LTO=OFF -DWASM_MALLOC=mimalloc
+	emcmake $(CMAKE) -S . -B $(WASM_RELEASE_BUILD_DIR) $(WASM_COMMON_CMAKE_ARGS) -DCMAKE_BUILD_TYPE=Release -DWASM_MAX_PERF=ON -DWASM_ENABLE_LTO=ON -DWASM_MALLOC=mimalloc
 
 wasm-release-build:
 	$(CMAKE) --build $(WASM_RELEASE_BUILD_DIR) $(WASM_JOBS)
 
 wasm-release: wasm-release-config wasm-release-build
 
-# Backwards-compatible aliases: build-wasm remains the fast dev/incremental build.
 wasm-config: wasm-dev-config
 wasm-build: wasm-dev-build
 config-wasm: wasm-dev-config
 build-wasm: wasm-dev-build
 
 serve:
-	python3 wasm-page/server.py
+	python3 wasm-page/serve.py --https
 
 docker:
 	docker run --rm -it \
