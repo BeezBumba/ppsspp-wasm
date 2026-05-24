@@ -323,7 +323,7 @@ if(EMSCRIPTEN)
 	option(WASM_MAX_PERF "Enable aggressive WebAssembly release optimizations" ON)
 	option(WASM_ENABLE_LTO "Enable WebAssembly link-time optimization in release builds" OFF)
 	option(WASM_PRELOAD_ASSETS "Package PPSSPP assets into the Emscripten preload data file" ON)
-	set(WASM_MAIN_LOOP_FPS "0" CACHE STRING "Browser main loop rate for wasm. 0 follows PPSSPP display timing; positive values override; -1 restores requestAnimationFrame timing.")
+	set(WASM_MAIN_LOOP_FPS "60" CACHE STRING "Browser main loop rate for wasm. 0 follows PPSSPP display timing; positive values override; -1 restores requestAnimationFrame timing.")
 	set(WASM_MALLOC "mimalloc" CACHE STRING "Emscripten malloc implementation for release builds")
 	set_property(CACHE WASM_MALLOC PROPERTY STRINGS emmalloc dlmalloc mimalloc)
 

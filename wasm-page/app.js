@@ -15,6 +15,21 @@ const OPFS_GAMES_DIR      = "games";
 const OPFS_GAME_META_DIR  = "game-meta";
 const PERSIST_SYNC_MS     = 30000; // auto-sync every 30 s
 const MOBILE_EMULATOR_ARGS = ["--dpi", "1", "--xres", "1280", "--yres", "720"];
+const WEB_NATIVE_TIMING_CONFIG = [
+  ["General", "ForceLagSync2", "True"],
+  ["Graphics", "DisplayRefreshRate", "60"],
+  ["Graphics", "FrameRate", "0"],
+  ["Graphics", "FrameRate2", "-1"],
+  ["Graphics", "FrameSkip", "0"],
+  ["Graphics", "AutoFrameSkip", "False"],
+  ["Graphics", "VerticalSync", "True"],
+  ["Graphics", "LowLatencyPresent", "False"],
+  ["Sound", "Enable", "True"],
+  ["Sound", "ExtraAudioBuffering", "False"],
+  ["Sound", "AudioBufferSize", "1024"],
+  ["Sound", "FillAudioGaps", "True"],
+  ["Sound", "AudioSyncMode", "0"],
+];
 const MOBILE_TOUCH_CONFIG = [
   ["General", "UIScaleFactor", "3"],
   ["Control", "ShowTouchControls", "True"],
@@ -2060,6 +2075,9 @@ async function forceGamesDirectoryConfig(FS) {
       try { text = decoder.decode(FS.readFile(iniPath)); } catch(e) {}
       let patched = patchIniValue(text, "General", "CurrentDirectory", VIRTUAL_GAME_DIR);
       patched = await applyNetworkConfig(FS, patched);
+      for (const [section, key, value] of WEB_NATIVE_TIMING_CONFIG) {
+        patched = patchIniValue(patched, section, key, value);
+      }
       if (applyMobileTouchDefaults) {
         for (const [section, key, value] of MOBILE_TOUCH_CONFIG) {
           patched = patchIniValue(patched, section, key, value);
@@ -2068,7 +2086,7 @@ async function forceGamesDirectoryConfig(FS) {
       const bytes = encoder.encode(patched);
       FS.writeFile(iniPath, bytes);
       await opfsPut(iniPath, bytes);
-      log("Config: web defaults applied to " + iniPath + (applyMobileTouchDefaults ? " (mobile touch/UI enabled)" : ""), "ok");
+      log("Config: web native timing/audio defaults applied to " + iniPath + (applyMobileTouchDefaults ? " (mobile touch/UI enabled)" : ""), "ok");
     } catch(e) {
       log("Config: failed to apply web defaults at " + iniPath + ": " + e.message, "warn");
     }

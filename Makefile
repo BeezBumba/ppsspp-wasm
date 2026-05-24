@@ -3,7 +3,7 @@
 WASM_DEV_BUILD_DIR ?= build-wasm
 WASM_RELEASE_BUILD_DIR ?= build-wasm-release
 WASM_JOBS ?= -j
-WASM_MAIN_LOOP_FPS ?= 0
+WASM_MAIN_LOOP_FPS ?= 60
 CMAKE ?= $(or $(wildcard /usr/bin/cmake),cmake)
 
 WASM_COMMON_CMAKE_ARGS := \

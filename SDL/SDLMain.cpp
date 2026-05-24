@@ -30,7 +30,7 @@ SDLJoystick *joystick = NULL;
 #include <emscripten/emscripten.h>
 
 #ifndef PPSSPP_WASM_MAIN_LOOP_FPS
-#define PPSSPP_WASM_MAIN_LOOP_FPS 0
+#define PPSSPP_WASM_MAIN_LOOP_FPS 60
 #endif
 #endif
 
