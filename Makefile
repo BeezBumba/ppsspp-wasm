@@ -1,4 +1,4 @@
-.PHONY: wasm-dev-config wasm-dev-build wasm-dev wasm-release-config wasm-release-build wasm-release wasm-config wasm-build config-wasm build-wasm serve
+.PHONY: wasm-dev-config wasm-dev-build wasm-dev wasm-release-config wasm-release-build wasm-release wasm-config wasm-build config-wasm build-wasm serve server-docker-up server-docker-down server-docker-logs
 
 WASM_DEV_BUILD_DIR ?= build-wasm
 WASM_RELEASE_BUILD_DIR ?= build-wasm-release
@@ -44,6 +44,15 @@ build-wasm: wasm-dev-build
 
 serve:
 	cd server && python3 serve.py --https
+
+server-docker-up:
+	docker compose up --build ppsspp-wasm-server
+
+server-docker-down:
+	docker compose down
+
+server-docker-logs:
+	docker compose logs -f ppsspp-wasm-server
 
 docker:
 	docker run --rm -it \
