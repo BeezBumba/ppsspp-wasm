@@ -9,7 +9,8 @@ from functools import partial
 
 class WasmThreadingHandler(SimpleHTTPRequestHandler):
     """
-    Serves the project root so that /build-wasm/ and /wasm-page/ are both reachable.
+    Serves the project root so that /build-wasm/ and /wasm-page/ are both reachable,
+    while the server script itself can be run from server/.
     Requests for / or /index.html are transparently rewritten to /wasm-page/index.html.
     Static assets (app.css, app.js, icons, sw.js, etc.) live in wasm-page/
     and are served from there.
@@ -45,23 +46,28 @@ def generate_self_signed_cert(cert_file, key_file):
 
 
 def main():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+
     parser = argparse.ArgumentParser(description="Serve PPSSPP wasm with pthread-compatible headers.")
     parser.add_argument("--bind", "--address", dest="bind", default="192.168.1.170")
     parser.add_argument("--port", type=int, default=8081)
     parser.add_argument("--https", action="store_true", help="Enable HTTPS (TLS)")
     parser.add_argument("--cert", default="cert.pem", help="TLS certificate file (PEM)")
     parser.add_argument("--key", default="key.pem", help="TLS private key file (PEM)")
-    parser.add_argument("--dir", default=None, help="Directory to serve (default: project root, parent of this script)")
+    parser.add_argument("--dir", default=None, help="Directory to serve (default: project root, parent of server/)")
     args = parser.parse_args()
 
-    # Serve from the project root (parent of wasm-page/), so build-wasm/ is accessible
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    serve_dir = args.dir or os.path.dirname(script_dir)
+    serve_dir = os.path.abspath(args.dir) if args.dir else project_root
     handler = partial(WasmThreadingHandler, directory=serve_dir)
 
     server = ThreadingHTTPServer((args.bind, args.port), handler)
 
     if args.https:
+        if not os.path.isabs(args.cert):
+            args.cert = os.path.join(script_dir, args.cert)
+        if not os.path.isabs(args.key):
+            args.key = os.path.join(script_dir, args.key)
         if not os.path.exists(args.cert) or not os.path.exists(args.key):
             generate_self_signed_cert(args.cert, args.key)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

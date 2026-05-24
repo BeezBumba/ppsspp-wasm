@@ -154,3 +154,5 @@ cmake-build-*/
 
 # Key files
 *.pem
+
+__pycache__
