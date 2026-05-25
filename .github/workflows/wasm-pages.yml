@@ -1,4 +1,4 @@
-name: Build WASM release and publish Pages
+name: Build WASM release
 
 on:
   push:
@@ -8,16 +8,14 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: wasm-release
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build PPSSPP Web
+    name: Build PPSSPP WASM
     runs-on: ubuntu-latest
     container:
       image: emscripten/emsdk:5.0.7
@@ -39,51 +37,3 @@ jobs:
 
       - name: Build release
         run: make wasm-release CMAKE=/usr/bin/cmake WASM_JOBS="-j$(nproc)"
-
-      - name: Prepare Pages artifact
-        run: |
-          set -eux
-          rm -rf public
-          mkdir -p public/build-wasm
-
-          cp -a wasm-page/. public/
-          find public -type d -name __pycache__ -prune -exec rm -rf {} +
-          find public -type f -name '*.pyc' -delete
-          rm -f public/serve.py
-
-          cp build-wasm-release/PPSSPPSDL.js public/build-wasm/
-          cp build-wasm-release/PPSSPPSDL.wasm public/build-wasm/
-          cp build-wasm-release/PPSSPPSDL.data public/build-wasm/
-
-          mkdir -p public/build-wasm/assets
-          cp -a assets/. public/build-wasm/assets/
-          find assets -type f ! -path '*/.*' | sed 's#^assets/##' | LC_ALL=C sort > public/assets-manifest.txt
-
-          touch public/.nojekyll
-          test -f public/index.html
-          test -f public/sw.js
-          test -f public/build-wasm/PPSSPPSDL.js
-          test -f public/build-wasm/PPSSPPSDL.wasm
-          test -f public/build-wasm/PPSSPPSDL.data
-          test -s public/assets-manifest.txt
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: public
-
-  deploy:
-    name: Deploy GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
