@@ -1,4 +1,4 @@
-.PHONY: wasm-dev-config wasm-dev-build wasm-dev wasm-release-config wasm-release-build wasm-release wasm-config wasm-build config-wasm build-wasm serve server-docker-up server-docker-down server-docker-logs
+.PHONY: wasm-dev-config wasm-dev-build wasm-dev wasm-release-config wasm-release-build wasm-release wasm-config wasm-build config-wasm build-wasm
 
 WASM_DEV_BUILD_DIR ?= build-wasm
 WASM_RELEASE_BUILD_DIR ?= build-wasm-release
@@ -42,21 +42,9 @@ wasm-build: wasm-dev-build
 config-wasm: wasm-dev-config
 build-wasm: wasm-dev-build
 
-serve:
-	cd server && python3 serve.py --https
-
-server-docker-up:
-	docker compose up --build ppsspp-wasm-server
-
-server-docker-down:
-	docker compose down
-
-server-docker-logs:
-	docker compose logs -f ppsspp-wasm-server
-
 docker:
 	docker run --rm -it \
-	-v /home/roothunter/lab/ppsspp:/src \
+	-v $(CURDIR):/src \
 	-w /src \
 	emscripten/emsdk:latest \
 	bash
