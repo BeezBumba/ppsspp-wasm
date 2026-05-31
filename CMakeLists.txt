@@ -2820,6 +2820,11 @@ setup_target_project(${CoreLibName} Core)
 # Generate git-version at build time.
 add_custom_target(GitVersion DEPENDS something_that_never_exists)
 
+set(GIT_VERSION_FALLBACK "unknown")
+if (EMSCRIPTEN)
+	set(GIT_VERSION_FALLBACK "wasm")
+endif()
+
 set(WIN_VERSION_CMD "")
 if (WIN32)
 	set(WIN_VERSION_CMD COMMAND ${CMAKE_SOURCE_DIR}/Windows/git-version-gen.cmd PPSSPPWindows)
@@ -2828,6 +2833,7 @@ endif()
 add_custom_command(OUTPUT something_that_never_exists
 	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
 		-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-DGIT_VERSION_FALLBACK=${GIT_VERSION_FALLBACK}
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/git-version.cmake
 	${WIN_VERSION_CMD})
 
