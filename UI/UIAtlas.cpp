@@ -384,12 +384,11 @@ static bool GenerateUIAtlasImage(Atlas *atlas, float dpiScale, Image *dest, int 
 	Path customButtons = GetSysDirectory(DIRECTORY_SYSTEM) / "buttons.svg";
 	if (File::Exists(customButtons)) {
 		if (!RasterizeSVG(customButtons.c_str(), dpiScale, maxTextureSize, imageIDs, imageCount, &images)) {
-			return false;
+			WARN_LOG(Log::G3D, "Failed to rasterize custom buttons.svg, falling back to bundled buttons.svg");
 		}
-	} else {
-		if (!RasterizeSVG("ui_images/buttons.svg", dpiScale, maxTextureSize, imageIDs, imageCount, &images)) {
-			return false;
-		}
+	}
+	if (!RasterizeSVG("ui_images/buttons.svg", dpiScale, maxTextureSize, imageIDs, imageCount, &images)) {
+		return false;
 	}
 	Instant shadowStart = Instant::Now();
 
