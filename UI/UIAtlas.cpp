@@ -223,6 +223,67 @@ static bool IsImageID(const ImageMeta *imageIDs, size_t imageCount, std::string_
 	return GetImageIndex(imageIDs, imageCount, id) != -1;
 }
 
+static void GenerateRectImage(Image *img, int w, int h, bool line) {
+	img->resize(w, h);
+	img->fill(0);
+
+	const int thickness = line ? 2 : h;
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
+			if (!line || x < thickness || x >= w - thickness || y < thickness || y >= h - thickness) {
+				img->set1(x, y, 0xFFFFFFFF);
+			}
+		}
+	}
+}
+
+static void GenerateRoundImage(Image *img, int w, int h, bool line) {
+	img->resize(w, h);
+	img->fill(0);
+
+	const float cx = (w - 1) * 0.5f;
+	const float cy = (h - 1) * 0.5f;
+	const float rx = cx;
+	const float ry = cy;
+	const float innerRx = std::max(1.0f, rx - 2.0f);
+	const float innerRy = std::max(1.0f, ry - 2.0f);
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
+			const float dx = (x - cx) / rx;
+			const float dy = (y - cy) / ry;
+			const float outer = dx * dx + dy * dy;
+			const float ix = (x - cx) / innerRx;
+			const float iy = (y - cy) / innerRy;
+			const float inner = ix * ix + iy * iy;
+			if (outer <= 1.0f && (!line || inner >= 1.0f)) {
+				img->set1(x, y, 0xFFFFFFFF);
+			}
+		}
+	}
+}
+
+static bool GenerateBuiltinFallbackImage(std::string_view id, bool addShadow, Image *img) {
+	if (equals(id, "I_RECT")) {
+		GenerateRectImage(img, 40, 20, false);
+	} else if (equals(id, "I_RECT_LINE")) {
+		GenerateRectImage(img, 40, 20, true);
+	} else if (equals(id, "I_ROUND")) {
+		GenerateRoundImage(img, 32, 32, false);
+	} else if (equals(id, "I_ROUND_LINE")) {
+		GenerateRoundImage(img, 32, 32, true);
+	} else {
+		return false;
+	}
+
+	if (addShadow) {
+		AddDropShadow(*img, 3, 0.66f);
+	} else {
+		Add1PxTransparentBorder(*img);
+	}
+	img->ConvertToPremultipliedAlpha();
+	return true;
+}
+
 static bool RasterizeSVG(std::string_view filename, float dpiScale, int maxTextureSize, const ImageMeta *imageIDs, size_t imageCount, std::vector<Image> *images) {
 	Instant svgStart = Instant::Now();
 
@@ -439,7 +500,11 @@ static bool GenerateUIAtlasImage(Atlas *atlas, float dpiScale, Image *dest, int 
 			name.append(pngName);
 			bool success = img.LoadPNG(name.c_str());
 			if (!success) {
-				ERROR_LOG(Log::G3D, "%.*s is missing. Not present in SVG files and no suitable PNG found (%s)", STR_VIEW(imageIDs[i].id), name.c_str());
+				if (GenerateBuiltinFallbackImage(imageIDs[i].id, imageIDs[i].addShadow, &img)) {
+					WARN_LOG(Log::G3D, "%.*s is missing from SVG/PNG, generated builtin fallback", STR_VIEW(imageIDs[i].id));
+				} else {
+					ERROR_LOG(Log::G3D, "%.*s is missing. Not present in SVG files and no suitable PNG found (%s)", STR_VIEW(imageIDs[i].id), name.c_str());
+				}
 			} else {
 				pngsLoaded++;
 				img.ConvertToPremultipliedAlpha();
