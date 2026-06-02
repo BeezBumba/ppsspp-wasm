@@ -188,7 +188,7 @@ void sdl_mixaudio_callback(void *userdata, Uint8 *stream, int len) {
 	}
 
 	float *output = (float *)stream;
-#ifdef PPSSPP_WASM_TRACE
+#if defined(__EMSCRIPTEN__) && defined(PPSSPP_WASM_AUDIO_TRACE)
 	int peak = 0;
 	static int callbackCount = 0;
 	static int nonSilentCallbackCount = 0;

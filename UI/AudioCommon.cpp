@@ -68,7 +68,7 @@ void System_AudioClear() {
 
 void System_AudioPushSamples(const int32_t *audio, int numSamples, float volume) {
 	if (audio) {
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) && defined(PPSSPP_WASM_AUDIO_TRACE)
 		int peak = 0;
 		for (int i = 0; i < numSamples * 2; i++) {
 			peak = std::max(peak, std::abs(audio[i]));
