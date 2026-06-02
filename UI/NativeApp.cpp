@@ -36,6 +36,10 @@
 #include <mutex>
 #include <thread>
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#endif
+
 #if defined(_WIN32)
 #include "Windows/WindowsAudio.h"
 #include "Windows/MainWindow.h"
@@ -191,6 +195,18 @@ static UIContext *uiContext;
 static int g_restartGraphics;
 static bool g_windowHidden = false;
 std::vector<std::function<void()>> g_pendingClosures;
+
+#if defined(__EMSCRIPTEN__)
+extern "C" EMSCRIPTEN_KEEPALIVE void PPSSPP_RefreshGameBrowser() {
+	std::lock_guard<std::mutex> lock(g_pendingMutex);
+	g_pendingClosures.push_back([]() {
+		if (g_screenManager) {
+			g_screenManager->RecreateAllViews();
+			System_Notify(SystemNotification::UI);
+		}
+	});
+}
+#endif
 
 AudioBackend *g_audioBackend = nullptr;
 
