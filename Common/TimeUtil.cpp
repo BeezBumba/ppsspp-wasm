@@ -121,6 +121,55 @@ int64_t Instant::ElapsedNanos() const {
 	return (int64_t)(ElapsedSeconds() * 1000000000.0);
 }
 
+#elif defined(__EMSCRIPTEN__)
+
+void TimeInit() {
+	// Nothing to do.
+}
+
+uint64_t time_now_raw() {
+	return (uint64_t)(emscripten_get_now() * 1000000.0);
+}
+
+static uint64_t g_startTime;
+
+double from_time_raw(uint64_t raw_time) {
+	return (double)(raw_time - g_startTime) * (1.0 / nanos);
+}
+
+double time_now_d() {
+	uint64_t raw_time = time_now_raw();
+	if (g_startTime == 0) {
+		g_startTime = raw_time;
+	}
+	return from_time_raw(raw_time);
+}
+
+double from_time_raw_relative(uint64_t raw_time) {
+	return (double)raw_time * (1.0 / nanos);
+}
+
+double time_now_unix_utc() {
+	struct timeval tv;
+	gettimeofday(&tv, nullptr);
+	return (double)tv.tv_sec + (double)tv.tv_usec * (1.0 / micros);
+}
+
+void yield() {}
+
+Instant::Instant() {
+	nativeStart_ = time_now_raw();
+	nsecs_ = 0;
+}
+
+int64_t Instant::ElapsedNanos() const {
+	return (int64_t)(time_now_raw() - nativeStart_);
+}
+
+double Instant::ElapsedSeconds() const {
+	return (double)ElapsedNanos() * (1.0 / nanos);
+}
+
 #elif PPSSPP_PLATFORM(ANDROID) || PPSSPP_PLATFORM(LINUX) || PPSSPP_PLATFORM(MAC) || PPSSPP_PLATFORM(IOS)
 
 void TimeInit() {

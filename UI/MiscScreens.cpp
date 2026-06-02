@@ -622,6 +622,9 @@ void CreditsScroller::Draw(UIContext &dc) {
 		cr->T("created", "Created by"),
 		"Henrik Rydg\xc3\xa5rd",
 		"",
+		"WASM porting:",
+		"Antonio Ricciardi",
+		"",
 		"",
 		cr->T("contributors", "Contributors:"),
 		"unknownbrackets",
@@ -747,13 +750,14 @@ void CreditsScroller::Draw(UIContext &dc) {
 
 	dc.Begin();
 
-	Bounds &bounds = bounds_;
-	bounds = bounds.Inset(10.f, 10.f);
+	Bounds bounds = bounds_.Inset(10.f, 10.f);
 	const int numItems = ARRAY_SIZE(credits);
 	int itemHeight = 36;
 	int contentsHeight = numItems * itemHeight + bounds.h + 200;
 
-	const float t = (float)(startTime_.ElapsedSeconds() * 60.0);
+	// Speed in pixels/second.
+	const float scrollSpeed = 60.0f;
+	const float t = (float)(startTime_.ElapsedSeconds() * scrollSpeed);
 
 	const float yOffset = fmodf(t - dragOffset_, (float)contentsHeight);
 
