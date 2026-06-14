@@ -1,0 +1,10 @@
+--- a/Core/Config.h
++++ b/Core/Config.h
+@@ -XXX,6 +XXX,8 @@ struct CoreConfig {
+     bool enableSaveStates = true;
+     bool enableCheats = true;
+     
++    bool enableFMVReplacements = false;
++    
+     // ... rest of config
+ };
